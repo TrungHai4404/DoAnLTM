@@ -6,6 +6,8 @@
             <file>file:/D:/NetBeansProjects/DoAnLTM/src/frm/frmVideoRoom.java</file>
             <file>file:/D:/NetBeansProjects/DoAnLTM/src/Client/ChatClientTCP.java</file>
             <file>file:/D:/NetBeansProjects/DoAnLTM/src/Server/ChatServerTCP.java</file>
+            <file>file:/D:/NetBeansProjects/DoAnLTM/src/Client/VideoClientUDP.java</file>
+            <file>file:/D:/NetBeansProjects/DoAnLTM/src/frm/frmMainMenu.java</file>
         </group>
     </open-files>
 </project-private>

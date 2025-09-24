@@ -40,7 +40,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
         this.isHost = isHost;
         initComponents();
         list_ThanhVien.setModel(memberModel);
-
+        txtRoomID.setText(roomID);
         videoPanelGrid.setLayout(new FlowLayout(FlowLayout.LEFT, 5, 5));
         initNetworking();
         initActions();
@@ -216,9 +216,10 @@ public class frmVideoRoom extends javax.swing.JFrame {
         btnMic = new javax.swing.JButton();
         btnVideo = new javax.swing.JButton();
         btnEnd = new javax.swing.JButton();
+        jLabel3 = new javax.swing.JLabel();
+        txtRoomID = new javax.swing.JTextField();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
-        setPreferredSize(new java.awt.Dimension(800, 500));
         getContentPane().setLayout(new org.netbeans.lib.awtextra.AbsoluteLayout());
 
         videoPanelGrid.setBorder(javax.swing.BorderFactory.createLineBorder(new java.awt.Color(0, 0, 0)));
@@ -255,6 +256,10 @@ public class frmVideoRoom extends javax.swing.JFrame {
         btnEnd.setText("Kết thúc");
         getContentPane().add(btnEnd, new org.netbeans.lib.awtextra.AbsoluteConstraints(522, 489, -1, -1));
 
+        jLabel3.setText("RoomID");
+        getContentPane().add(jLabel3, new org.netbeans.lib.awtextra.AbsoluteConstraints(40, 470, -1, -1));
+        getContentPane().add(txtRoomID, new org.netbeans.lib.awtextra.AbsoluteConstraints(10, 490, 110, -1));
+
         pack();
     }// </editor-fold>//GEN-END:initComponents
 
@@ -265,9 +270,11 @@ public class frmVideoRoom extends javax.swing.JFrame {
     private javax.swing.JButton btnVideo;
     private javax.swing.JLabel jLabel1;
     private javax.swing.JLabel jLabel2;
+    private javax.swing.JLabel jLabel3;
     private javax.swing.JScrollPane jScrollPane1;
     private javax.swing.JScrollPane jScrollPane2;
     private javax.swing.JList<String> list_ThanhVien;
+    private javax.swing.JTextField txtRoomID;
     private javax.swing.JTextField txtVanBan;
     private javax.swing.JTextArea txt_KhungChat;
     private javax.swing.JPanel videoPanelGrid;

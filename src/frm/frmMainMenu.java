@@ -81,19 +81,15 @@ public class frmMainMenu extends javax.swing.JFrame {
 
     private void btnThamGiaCuocGoiActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnThamGiaCuocGoiActionPerformed
        // Tham gia cuộc gọi
-        btnThamGiaCuocGoi.addActionListener(e -> {
-            String roomID = JOptionPane.showInputDialog(this, "Nhập Room ID:");
-            if (roomID != null && !roomID.isEmpty()) {
-                openVideoRoom(roomID, false);
-            }
-        });
+        String roomID = JOptionPane.showInputDialog(this, "Nhập Room ID:");
+        if (roomID != null && !roomID.isEmpty()) {
+            openVideoRoom(roomID, false); // mở frmVideoRoom với roomID
+        }
     }//GEN-LAST:event_btnThamGiaCuocGoiActionPerformed
 
     private void btnTaoCuocGoiActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnTaoCuocGoiActionPerformed
-        btnTaoCuocGoi.addActionListener(e -> {
-            String roomID = "ROOM_" + System.currentTimeMillis(); // tạo ID phòng
-            openVideoRoom(roomID, true);
-        });
+        String roomID = "ROOM_" + System.currentTimeMillis();
+        openVideoRoom(roomID, true);
     }//GEN-LAST:event_btnTaoCuocGoiActionPerformed
 
     /**
