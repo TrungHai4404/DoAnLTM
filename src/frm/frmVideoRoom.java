@@ -110,7 +110,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
                     if (msg != null) {
                         if (msg.startsWith("EXIT:")) {
                             String clientID = msg.substring(5);
-                            SwingUtilities.invokeLater(() -> handleClientExit(clientID));
+                            SwingUtilities.invokeLater(() -> removeMemberAndVideo(clientID));
                         } else {
                             SwingUtilities.invokeLater(() -> txt_KhungChat.append(msg + "\n"));
                         }
@@ -122,10 +122,18 @@ public class frmVideoRoom extends javax.swing.JFrame {
         }).start();
 
 
+
         // Release webcam khi đóng form
         addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override
             public void windowClosing(java.awt.event.WindowEvent e) {
-                webcam.release();
+                try {
+                    if (chatClient != null) {
+                        chatClient.sendMessage("EXIT:" + localClientID);
+                        webcam.release();                    }
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
             }
         });
 
@@ -148,7 +156,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
             }
         });
 
-        btnEnd.addActionListener(e -> dispose());
+        btnEnd.addActionListener(e -> System.exit(0));
 
         btnVideo.addActionListener(e -> {
             videoEnabled = !videoEnabled;
@@ -159,16 +167,9 @@ public class frmVideoRoom extends javax.swing.JFrame {
             micEnabled = !micEnabled;
             btnMic.setText(micEnabled ? "Tắt Mic" : "Bật Mic");
         });
-        btnEnd.addActionListener(e -> {
-            try {
-                chatClient.sendMessage("EXIT:" + localClientID);
-            } catch (Exception ex) {
-                ex.printStackTrace();
-            }
-            dispose();
-        });
+        
     }
-    private void handleClientExit(String clientID) {
+    private void removeMemberAndVideo(String clientID) {
         // Xóa video panel
         JLabel label = videoPanels.get(clientID);
         if (label != null) {
@@ -178,9 +179,10 @@ public class frmVideoRoom extends javax.swing.JFrame {
             videoPanels.remove(clientID);
         }
 
-        // Xóa member list
+        // Xóa member khỏi list
         memberModel.removeElement(clientID);
     }
+
 
     private BufferedImage resizeFrame(BufferedImage img, int width, int height) {
         Image scaled = img.getScaledInstance(width, height, Image.SCALE_SMOOTH);
