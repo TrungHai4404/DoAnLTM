@@ -29,6 +29,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
     // map clientID -> JLabel (video nhỏ)
     private ConcurrentHashMap<String, JLabel> videoPanels = new ConcurrentHashMap<>();
     private DefaultListModel<String> memberModel = new DefaultListModel<>();
+    private ConcurrentHashMap<String, Boolean> activeClients = new ConcurrentHashMap<>();
 
     private VideoClientUDP videoClient;
     private ChatClientTCP chatClient;
@@ -93,7 +94,9 @@ public class frmVideoRoom extends javax.swing.JFrame {
                     String clientID = new String(java.util.Arrays.copyOfRange(data, 0, 36)).trim();
                     byte[] frameBytes = java.util.Arrays.copyOfRange(data, 36, data.length);
                     BufferedImage img = ImageIO.read(new ByteArrayInputStream(frameBytes));
-
+                    if (img != null && activeClients.getOrDefault(clientID, false)) {
+                        SwingUtilities.invokeLater(() -> updateVideoPanel(clientID, img));
+                    }
                     if (img != null) {
                         SwingUtilities.invokeLater(() -> updateVideoPanel(clientID, img));
                         addMember(clientID);
@@ -170,7 +173,10 @@ public class frmVideoRoom extends javax.swing.JFrame {
         
     }
     private void removeMemberAndVideo(String clientID) {
-        // Xóa video panel
+        // đánh dấu inactive
+        activeClients.put(clientID, false);
+
+        // xóa video panel
         JLabel label = videoPanels.get(clientID);
         if (label != null) {
             videoPanelGrid.remove(label);
@@ -179,9 +185,10 @@ public class frmVideoRoom extends javax.swing.JFrame {
             videoPanels.remove(clientID);
         }
 
-        // Xóa member khỏi list
+        // xóa member khỏi list
         memberModel.removeElement(clientID);
     }
+
 
 
     private BufferedImage resizeFrame(BufferedImage img, int width, int height) {
