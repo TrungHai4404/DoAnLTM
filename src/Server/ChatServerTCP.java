@@ -2,7 +2,6 @@ package server;
 
 import java.io.*;
 import java.net.*;
-import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 public class ChatServerTCP {
@@ -10,7 +9,7 @@ public class ChatServerTCP {
     private ServerSocket serverSocket;
     private CopyOnWriteArrayList<ClientHandler> clients = new CopyOnWriteArrayList<>();
 
-    public ChatServerTCP() throws IOException {
+    public ChatServerTCP() throws Exception {
         serverSocket = new ServerSocket(port);
         System.out.println("TCP Chat Server started on port " + port);
 
@@ -43,14 +42,14 @@ public class ChatServerTCP {
             } catch (Exception e) {
                 e.printStackTrace();
             } finally {
-                try { socket.close(); } catch (IOException e) {}
                 clients.remove(this);
+                try { socket.close(); } catch (Exception ignored) {}
             }
         }
 
         private void broadcast(String msg) {
             for (ClientHandler c : clients) {
-                c.out.println(msg); // gửi cho tất cả client, kể cả người gửi
+                c.out.println(msg);
             }
         }
     }

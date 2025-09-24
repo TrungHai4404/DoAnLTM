@@ -11,6 +11,8 @@ import java.awt.Image;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.net.DatagramPacket;
+import java.util.Arrays;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.imageio.ImageIO;
 import javax.swing.DefaultListModel;
@@ -57,52 +59,40 @@ public class frmVideoRoom extends javax.swing.JFrame {
 
             addMember(localClientID);
 
-            // Thread nhận video
-            new Thread(() -> {
-                try {
-                    while (true) {
-                        VideoClientUDP.FrameData fd = videoClient.receiveFrame();
-                        if (fd != null && fd.data.length > 0) {
-                            BufferedImage img = ImageIO.read(new ByteArrayInputStream(fd.data));
-                            if (img != null) {
-                                SwingUtilities.invokeLater(() -> updateVideoPanel(fd.clientID, img));
-                                addMember(fd.clientID);
-                            }
-                        }
-                    }
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }).start();
-
             // Thread gửi video
             new Thread(() -> {
                 WebcamCapture webcam = new WebcamCapture();
                 try {
                     while (true) {
-                        if (!videoEnabled) {
-                            Thread.sleep(100);
-                            continue;
-                        }
+                        if (!videoEnabled) { Thread.sleep(100); continue; }
                         byte[] frameData = webcam.captureFrame();
                         if (frameData != null && frameData.length > 0) {
                             BufferedImage img = ImageIO.read(new ByteArrayInputStream(frameData));
-                            if (img != null) {
-                                BufferedImage resized = resizeFrame(img, 160, 120); // video nhỏ
-                                ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                                ImageIO.write(resized, "jpg", baos);
-                                byte[] smallFrame = baos.toByteArray();
-                                videoClient.sendFrame(smallFrame, localClientID);
-                                SwingUtilities.invokeLater(() -> updateVideoPanel(localClientID, resized));
-                            }
+                            BufferedImage resized = resizeFrame(img, 160, 120);
+                            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                            ImageIO.write(resized, "jpg", baos);
+                            byte[] smallFrame = baos.toByteArray();
+
+                            videoClient.sendFrame(smallFrame);
+                            SwingUtilities.invokeLater(() -> updateVideoPanel(localClientID, resized));
                         }
-                        Thread.sleep(100); // ~10 FPS
+                        Thread.sleep(100);
                     }
-                } catch (Exception e) {
-                    e.printStackTrace();
-                } finally {
-                    webcam.release();
-                }
+                } catch (Exception e) { e.printStackTrace(); }
+                finally { webcam.release(); }
+            }).start();
+
+            // Thread nhận video
+            new Thread(() -> {
+                try {
+                    byte[] buf = new byte[65507];
+                    while (true) {
+                        DatagramPacket pkt = videoClient.receiveFrame(buf);
+                        byte[] frame = Arrays.copyOf(pkt.getData(), pkt.getLength());
+                        BufferedImage img = ImageIO.read(new ByteArrayInputStream(frame));
+                        SwingUtilities.invokeLater(() -> updateVideoPanel("Remote", img)); // bạn có thể parse clientID
+                    }
+                } catch (Exception e) { e.printStackTrace(); }
             }).start();
 
             // Thread nhận chat
