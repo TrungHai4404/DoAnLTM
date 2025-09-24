@@ -14,18 +14,11 @@ public class ChatClientTCP {
         out = new PrintWriter(socket.getOutputStream(), true);
     }
 
-    // Gửi tin nhắn
     public void sendMessage(String msg) {
         out.println(msg);
     }
 
-    // Nhận tin nhắn (blocking)
     public String receiveMessage() throws IOException {
         return in.readLine();
-    }
-
-    // Đóng kết nối
-    public void close() throws IOException {
-        if (socket != null) socket.close();
     }
 }

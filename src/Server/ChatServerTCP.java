@@ -6,12 +6,11 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 public class ChatServerTCP {
     private int port = 6000;
-    private ServerSocket serverSocket;
     private CopyOnWriteArrayList<ClientHandler> clients = new CopyOnWriteArrayList<>();
 
     public ChatServerTCP() throws Exception {
-        serverSocket = new ServerSocket(port);
-        System.out.println("TCP Chat Server started on port " + port);
+        ServerSocket serverSocket = new ServerSocket(port);
+        System.out.println("Chat TCP Server started on port " + port);
 
         while (true) {
             Socket socket = serverSocket.accept();
@@ -39,12 +38,7 @@ public class ChatServerTCP {
                 while ((msg = in.readLine()) != null) {
                     broadcast(msg);
                 }
-            } catch (Exception e) {
-                e.printStackTrace();
-            } finally {
-                clients.remove(this);
-                try { socket.close(); } catch (Exception ignored) {}
-            }
+            } catch (Exception e) { e.printStackTrace(); }
         }
 
         private void broadcast(String msg) {

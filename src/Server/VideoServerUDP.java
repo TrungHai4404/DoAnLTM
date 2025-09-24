@@ -2,38 +2,39 @@ package server;
 
 import java.net.*;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.*;
 
 public class VideoServerUDP {
-    private int port = 5000;
     private DatagramSocket socket;
-    // clientID -> InetSocketAddress
-    private ConcurrentHashMap<String, InetSocketAddress> clients = new ConcurrentHashMap<>();
+    private int port = 5000;
+    
+    // Lưu địa chỉ client để phát video cho tất cả
+    private CopyOnWriteArrayList<InetSocketAddress> clients = new CopyOnWriteArrayList<>();
 
     public VideoServerUDP() throws Exception {
         socket = new DatagramSocket(port);
         System.out.println("Video UDP Server started on port " + port);
 
-        byte[] buffer = new byte[65507]; // max UDP size
+        byte[] buf = new byte[65536]; // buffer lớn
 
         while (true) {
-            DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
-            socket.receive(packet);
+            DatagramPacket pkt = new DatagramPacket(buf, buf.length);
+            socket.receive(pkt);
 
-            // dữ liệu: clientID + frame
-            byte[] data = Arrays.copyOf(packet.getData(), packet.getLength());
-            String clientID = new String(data, 0, 36); // giả sử 36 byte ID
-            byte[] frame = Arrays.copyOfRange(data, 36, data.length);
+            // Lưu client vào danh sách nếu chưa có
+            InetSocketAddress clientAddr = new InetSocketAddress(pkt.getAddress(), pkt.getPort());
+            if (!clients.contains(clientAddr)) {
+                clients.add(clientAddr);
+                System.out.println("New client: " + clientAddr);
+            }
 
-            // Lưu client
-            InetSocketAddress addr = new InetSocketAddress(packet.getAddress(), packet.getPort());
-            clients.put(clientID, addr);
-
-            // Broadcast frame tới tất cả client khác
-            for (Map.Entry<String, InetSocketAddress> e : clients.entrySet()) {
-                if (!e.getKey().equals(clientID)) {
-                    DatagramPacket sendPacket = new DatagramPacket(frame, frame.length, e.getValue().getAddress(), e.getValue().getPort());
-                    socket.send(sendPacket);
+            // Phát lại frame cho tất cả client (trừ client gửi)
+            for (InetSocketAddress c : clients) {
+                if (!c.equals(clientAddr)) {
+                    DatagramPacket sendPkt = new DatagramPacket(
+                        pkt.getData(), pkt.getLength(), c.getAddress(), c.getPort()
+                    );
+                    socket.send(sendPkt);
                 }
             }
         }

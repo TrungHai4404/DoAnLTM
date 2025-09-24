@@ -5,28 +5,29 @@ import java.net.*;
 public class VideoClientUDP {
     private DatagramSocket socket;
     private InetAddress serverAddr;
-    private int serverPort = 5000;
-    private String clientID;
+    private int port = 5000;
 
-    public VideoClientUDP(String serverIP, String clientID) throws Exception {
-        this.serverAddr = InetAddress.getByName(serverIP);
-        this.clientID = clientID;
+    public VideoClientUDP(String serverIP) throws Exception {
         socket = new DatagramSocket();
+        serverAddr = InetAddress.getByName(serverIP);
     }
 
-    public void sendFrame(byte[] frame) throws Exception {
-        byte[] idBytes = clientID.getBytes(); // 36 byte
-        byte[] data = new byte[idBytes.length + frame.length];
-        System.arraycopy(idBytes, 0, data, 0, idBytes.length);
-        System.arraycopy(frame, 0, data, idBytes.length, frame.length);
+    /** Gửi frame kèm clientID */
+    public void sendFrame(byte[] frameData, String clientID) throws Exception {
+        byte[] clientBytes = clientID.getBytes();
+        byte[] data = new byte[36 + frameData.length];
 
-        DatagramPacket packet = new DatagramPacket(data, data.length, serverAddr, serverPort);
-        socket.send(packet);
+        System.arraycopy(clientBytes, 0, data, 0, Math.min(clientBytes.length, 36));
+        System.arraycopy(frameData, 0, data, 36, frameData.length);
+
+        DatagramPacket pkt = new DatagramPacket(data, data.length, serverAddr, port);
+        socket.send(pkt);
     }
 
-    public DatagramPacket receiveFrame(byte[] buffer) throws Exception {
-        DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
-        socket.receive(packet);
-        return packet;
+    /** Nhận frame từ server */
+    public DatagramPacket receiveFrame(byte[] buf) throws Exception {
+        DatagramPacket pkt = new DatagramPacket(buf, buf.length);
+        socket.receive(pkt);
+        return pkt;
     }
 }

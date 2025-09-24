@@ -53,66 +53,77 @@ public class frmVideoRoom extends javax.swing.JFrame {
     }
 
     private void initNetworking() {
-        try {
-            videoClient = new VideoClientUDP("192.168.1.5", localClientID);
-            chatClient = new ChatClientTCP("192.168.1.5", 6000);
+    try {
+        videoClient = new VideoClientUDP("192.168.1.5");
+        chatClient = new ChatClientTCP("192.168.1.5", 6000);
+        addMember(localClientID);
 
-            addMember(localClientID);
+        WebcamCapture webcam = new WebcamCapture();
 
-            // Thread gửi video
-            new Thread(() -> {
-                WebcamCapture webcam = new WebcamCapture();
-                try {
-                    while (true) {
-                        if (!videoEnabled) { Thread.sleep(100); continue; }
-                        byte[] frameData = webcam.captureFrame();
-                        if (frameData != null && frameData.length > 0) {
-                            BufferedImage img = ImageIO.read(new ByteArrayInputStream(frameData));
-                            BufferedImage resized = resizeFrame(img, 160, 120);
-                            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                            ImageIO.write(resized, "jpg", baos);
-                            byte[] smallFrame = baos.toByteArray();
+        // Thread gửi video
+        new Thread(() -> {
+            try {
+                while (true) {
+                    if (!videoEnabled) { Thread.sleep(100); continue; }
+                    byte[] frameData = webcam.captureFrame();
+                    if (frameData != null && frameData.length > 0) {
+                        BufferedImage img = ImageIO.read(new ByteArrayInputStream(frameData));
+                        BufferedImage resized = resizeFrame(img, 160, 120);
+                        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                        ImageIO.write(resized, "jpg", baos);
+                        byte[] smallFrame = baos.toByteArray();
 
-                            videoClient.sendFrame(smallFrame);
-                            SwingUtilities.invokeLater(() -> updateVideoPanel(localClientID, resized));
-                        }
-                        Thread.sleep(100);
+                        videoClient.sendFrame(smallFrame, localClientID);
+                        SwingUtilities.invokeLater(() -> updateVideoPanel(localClientID, resized));
                     }
-                } catch (Exception e) { e.printStackTrace(); }
-                finally { webcam.release(); }
-            }).start();
-
-            // Thread nhận video
-            new Thread(() -> {
-                try {
-                    byte[] buf = new byte[65507];
-                    while (true) {
-                        DatagramPacket pkt = videoClient.receiveFrame(buf);
-                        byte[] frame = Arrays.copyOf(pkt.getData(), pkt.getLength());
-                        BufferedImage img = ImageIO.read(new ByteArrayInputStream(frame));
-                        SwingUtilities.invokeLater(() -> updateVideoPanel("Remote", img)); // bạn có thể parse clientID
-                    }
-                } catch (Exception e) { e.printStackTrace(); }
-            }).start();
-
-            // Thread nhận chat
-            new Thread(() -> {
-                try {
-                    while (true) {
-                        String msg = chatClient.receiveMessage();
-                        if (msg != null) {
-                            SwingUtilities.invokeLater(() -> txt_KhungChat.append(msg + "\n"));
-                        }
-                    }
-                } catch (Exception e) {
-                    e.printStackTrace();
+                    Thread.sleep(100);
                 }
-            }).start();
+            } catch (Exception e) { e.printStackTrace(); }
+        }).start();
 
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        // Thread nhận video
+        new Thread(() -> {
+            try {
+                byte[] buf = new byte[65536];
+                while (true) {
+                    DatagramPacket pkt = videoClient.receiveFrame(buf);
+                    byte[] data = java.util.Arrays.copyOf(pkt.getData(), pkt.getLength());
+                    if (data.length <= 36) continue;
+
+                    String clientID = new String(java.util.Arrays.copyOfRange(data, 0, 36)).trim();
+                    byte[] frameBytes = java.util.Arrays.copyOfRange(data, 36, data.length);
+                    BufferedImage img = ImageIO.read(new ByteArrayInputStream(frameBytes));
+
+                    if (img != null) {
+                        SwingUtilities.invokeLater(() -> updateVideoPanel(clientID, img));
+                        addMember(clientID);
+                    }
+                }
+            } catch (Exception e) { e.printStackTrace(); }
+        }).start();
+
+        // Thread nhận chat
+        new Thread(() -> {
+            try {
+                while (true) {
+                    String msg = chatClient.receiveMessage();
+                    if (msg != null) SwingUtilities.invokeLater(() -> txt_KhungChat.append(msg + "\n"));
+                }
+            } catch (Exception e) { e.printStackTrace(); }
+        }).start();
+
+        // Release webcam khi đóng form
+        addWindowListener(new java.awt.event.WindowAdapter() {
+            public void windowClosing(java.awt.event.WindowEvent e) {
+                webcam.release();
+            }
+        });
+
+    } catch (Exception e) {
+        e.printStackTrace();
     }
+}
+
 
     private void initActions() {
         btnGui.addActionListener(e -> {
