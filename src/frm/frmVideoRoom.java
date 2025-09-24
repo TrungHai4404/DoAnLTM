@@ -107,10 +107,20 @@ public class frmVideoRoom extends javax.swing.JFrame {
             try {
                 while (true) {
                     String msg = chatClient.receiveMessage();
-                    if (msg != null) SwingUtilities.invokeLater(() -> txt_KhungChat.append(msg + "\n"));
+                    if (msg != null) {
+                        if (msg.startsWith("EXIT:")) {
+                            String clientID = msg.substring(5);
+                            SwingUtilities.invokeLater(() -> handleClientExit(clientID));
+                        } else {
+                            SwingUtilities.invokeLater(() -> txt_KhungChat.append(msg + "\n"));
+                        }
+                    }
                 }
-            } catch (Exception e) { e.printStackTrace(); }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }).start();
+
 
         // Release webcam khi đóng form
         addWindowListener(new java.awt.event.WindowAdapter() {
@@ -149,6 +159,27 @@ public class frmVideoRoom extends javax.swing.JFrame {
             micEnabled = !micEnabled;
             btnMic.setText(micEnabled ? "Tắt Mic" : "Bật Mic");
         });
+        btnEnd.addActionListener(e -> {
+            try {
+                chatClient.sendMessage("EXIT:" + localClientID);
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
+            dispose();
+        });
+    }
+    private void handleClientExit(String clientID) {
+        // Xóa video panel
+        JLabel label = videoPanels.get(clientID);
+        if (label != null) {
+            videoPanelGrid.remove(label);
+            videoPanelGrid.revalidate();
+            videoPanelGrid.repaint();
+            videoPanels.remove(clientID);
+        }
+
+        // Xóa member list
+        memberModel.removeElement(clientID);
     }
 
     private BufferedImage resizeFrame(BufferedImage img, int width, int height) {
@@ -255,6 +286,11 @@ public class frmVideoRoom extends javax.swing.JFrame {
         getContentPane().add(btnVideo, new org.netbeans.lib.awtextra.AbsoluteConstraints(359, 489, -1, -1));
 
         btnEnd.setText("Kết thúc");
+        btnEnd.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                btnEndActionPerformed(evt);
+            }
+        });
         getContentPane().add(btnEnd, new org.netbeans.lib.awtextra.AbsoluteConstraints(522, 489, -1, -1));
 
         jLabel3.setText("RoomID");
@@ -263,6 +299,10 @@ public class frmVideoRoom extends javax.swing.JFrame {
 
         pack();
     }// </editor-fold>//GEN-END:initComponents
+
+    private void btnEndActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnEndActionPerformed
+        // TODO add your handling code here:
+    }//GEN-LAST:event_btnEndActionPerformed
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JButton btnEnd;
