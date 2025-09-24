@@ -3,14 +3,14 @@ package server;
 import java.io.*;
 import java.net.*;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public class ChatServerTCP {
     private int port = 6000;
     private ServerSocket serverSocket;
     private CopyOnWriteArrayList<ClientHandler> clients = new CopyOnWriteArrayList<>();
 
-    public ChatServerTCP() throws Exception {
+    public ChatServerTCP() throws IOException {
         serverSocket = new ServerSocket(port);
         System.out.println("TCP Chat Server started on port " + port);
 
@@ -35,19 +35,22 @@ public class ChatServerTCP {
 
         @Override
         public void run() {
-            try{
+            try {
                 String msg;
-                while((msg=in.readLine())!=null){
+                while ((msg = in.readLine()) != null) {
                     broadcast(msg);
                 }
-            }catch(Exception e){ e.printStackTrace(); }
+            } catch (Exception e) {
+                e.printStackTrace();
+            } finally {
+                try { socket.close(); } catch (IOException e) {}
+                clients.remove(this);
+            }
         }
 
-        private void broadcast(String msg){
-            for(ClientHandler c: clients){
-                if(c!=this){
-                    c.out.println(msg);
-                }
+        private void broadcast(String msg) {
+            for (ClientHandler c : clients) {
+                c.out.println(msg); // gửi cho tất cả client, kể cả người gửi
             }
         }
     }
