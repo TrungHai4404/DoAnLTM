@@ -3,6 +3,7 @@ package frm;
 import Client.ChatClientTCP;
 import Client.VideoClientUDP;
 import Client.WebcamCapture;
+import Network.NetworkUtils;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
@@ -55,8 +56,12 @@ public class frmVideoRoom extends javax.swing.JFrame {
 
     private void initNetworking() {
     try {
-        videoClient = new VideoClientUDP("192.168.1.5");
-        chatClient = new ChatClientTCP("192.168.1.5", 6000);
+        String localIP = NetworkUtils.getLocalIPAddress();
+        System.out.println("Local IP: " + localIP);
+
+        videoClient = new VideoClientUDP(localIP);
+        chatClient = new ChatClientTCP(localIP, 6000);
+
         addMember(localClientID);
 
         WebcamCapture webcam = new WebcamCapture();
@@ -123,9 +128,6 @@ public class frmVideoRoom extends javax.swing.JFrame {
                 e.printStackTrace();
             }
         }).start();
-
-
-
         // Release webcam khi đóng form
         addWindowListener(new java.awt.event.WindowAdapter() {
             @Override
@@ -133,13 +135,13 @@ public class frmVideoRoom extends javax.swing.JFrame {
                 try {
                     if (chatClient != null) {
                         chatClient.sendMessage("EXIT:" + localClientID);
-                        webcam.release();                    }
+                        webcam.release();
+                    }
                 } catch (Exception ex) {
                     ex.printStackTrace();
                 }
             }
         });
-
     } catch (Exception e) {
         e.printStackTrace();
     }
@@ -220,16 +222,6 @@ public class frmVideoRoom extends javax.swing.JFrame {
         // Cập nhật hình ảnh
         label.setIcon(new ImageIcon(img));
     }
-    private void removeVideoPanel(String clientID) {
-        JLabel label = videoPanels.remove(clientID);
-        if (label != null) {
-            videoPanelGrid.remove(label);
-            videoPanelGrid.revalidate();
-            videoPanelGrid.repaint();
-        }
-        memberModel.removeElement(clientID);
-    }
-
     private void addMember(String clientID) {
         if (!memberModel.contains(clientID)) {
             memberModel.addElement(clientID);

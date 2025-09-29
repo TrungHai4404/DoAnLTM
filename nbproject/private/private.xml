@@ -3,11 +3,7 @@
     <editor-bookmarks xmlns="http://www.netbeans.org/ns/editor-bookmarks/2" lastBookmarkId="0"/>
     <open-files xmlns="http://www.netbeans.org/ns/projectui-open-files/2">
         <group>
-            <file>file:/D:/NetBeansProjects/DoAnLTM/src/Server/VideoServerUDP.java</file>
-            <file>file:/D:/NetBeansProjects/DoAnLTM/src/Server/ChatServerTCP.java</file>
-            <file>file:/D:/NetBeansProjects/DoAnLTM/src/Client/VideoClientUDP.java</file>
             <file>file:/D:/NetBeansProjects/DoAnLTM/src/frm/frmVideoRoom.java</file>
-            <file>file:/D:/NetBeansProjects/DoAnLTM/src/Client/ChatClientTCP.java</file>
         </group>
     </open-files>
 </project-private>
