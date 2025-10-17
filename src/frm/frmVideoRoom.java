@@ -372,13 +372,13 @@ public class frmVideoRoom extends javax.swing.JFrame {
                 // Xóa video panel local
                 SwingUtilities.invokeLater(() -> removeVideoPanel(localClientID));
 
-                // Giải phóng webcam
+                // Giải phóng webcam và audio
                 webcam.release();
+                audioClient.stop();
 
-                // Cập nhật LeaveTime trong DB được server xử lý
                 // Quay lại menu chính
                 new frmMainMenu(currentUser).setVisible(true);
-                Thread.sleep(5000);
+//                Thread.sleep(5000);
                 this.dispose();
             } catch (Exception e) {
                 e.printStackTrace();
@@ -406,6 +406,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
                 chatClient.sendMessage(exitMsg);
             }
             webcam.release();
+            audioClient.stop();
             SwingUtilities.invokeLater(() -> removeVideoPanel(localClientID));
             System.out.println("👋 Người dùng đã rời phòng: " + localClientID);
         } catch (Exception ex) {

@@ -59,11 +59,17 @@ public class AudioClientUDP {
             try {
                 DataLine.Info info = new DataLine.Info(SourceDataLine.class, format);
                 speakers = (SourceDataLine) AudioSystem.getLine(info);
-                speakers.open(format);
+
+                // 💡 TỐI ƯU 2: Mở loa với một bộ đệm lớn hơn
+                // Kích thước buffer = sampleRate * channels * (bytes per sample) * (buffer duration in seconds)
+                // Ví dụ: 16000 * 1 * 2 * 0.1 = 3200 bytes cho 100ms buffer
+                int bufferSize = (int) format.getSampleRate() * format.getFrameSize() * 2;
+                speakers.open(format, bufferSize); 
+
                 speakers.start();
 
                 byte[] buffer = new byte[4096];
-                System.out.println("🔊 Đang nhận và phát âm thanh...");
+                System.out.println("🔊 Đang nhận và phát âm thanh với buffer " + bufferSize + " bytes...");
 
                 while (running) {
                     DatagramPacket pkt = new DatagramPacket(buffer, buffer.length);
