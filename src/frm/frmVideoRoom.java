@@ -146,8 +146,8 @@ public class frmVideoRoom extends javax.swing.JFrame {
                         String msg = chatClient.receiveMessage();
                         if (msg != null) {
                             if (msg.startsWith("EXIT:")) {
-                                String clientID = msg.substring(5);
-                                SwingUtilities.invokeLater(() -> removeVideoPanel(clientID));
+                                String clientID = msg.substring(5).trim();
+                                SwingUtilities.invokeLater(() -> removeVideoPanel(localClientID));
                                 SwingUtilities.invokeLater(() ->removeUserFromList(clientID));
                                 System.out.println("🧹 Xóa video của: " + clientID);
                             } else if (msg.startsWith("CAM_OFF:")) {
@@ -245,14 +245,13 @@ public class frmVideoRoom extends javax.swing.JFrame {
             videoPanelGrid.remove(label);
             videoPanelGrid.revalidate();
             videoPanelGrid.repaint();
-            System.out.println("🧹 Đã xóa video của " + clientID);
+            System.out.println("? Đã xóa video của " + clientID);
         }
     }
     // === Khi nhận tin nhắn rời phòng từ server ===
     private void handleExitMessage(String msg) {
         if (msg.startsWith("EXIT:")) {
-            String clientID = msg.substring(5).trim();
-            SwingUtilities.invokeLater(() -> removeVideoPanel(clientID));
+            SwingUtilities.invokeLater(() -> removeVideoPanel(localClientID));
         }
     }
     // === Hàm tạo ảnh "Camera Off" ===
@@ -371,7 +370,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
                 }
 
                 // Xóa video panel local
-                SwingUtilities.invokeLater(() -> removeVideoPanel(currentUser.getId()));
+                SwingUtilities.invokeLater(() -> removeVideoPanel(localClientID));
 
                 // Giải phóng webcam và audio
                 if (audioClient != null) audioClient.stop();
@@ -379,7 +378,6 @@ public class frmVideoRoom extends javax.swing.JFrame {
 
                 // Quay lại menu chính
                 new frmMainMenu(currentUser).setVisible(true);
-//                Thread.sleep(5000);
                 this.dispose();
             } catch (Exception e) {
                 e.printStackTrace();
@@ -422,13 +420,14 @@ public class frmVideoRoom extends javax.swing.JFrame {
 
         if (videoEnabled) {
             btnVideo.setText("Tắt Video");
-            System.out.println("📷 Camera bật lại");
+            System.out.println("Camera On");
 
             // Gửi thông báo bật cam tới các client khác
             chatClient.sendMessage("CAM_ON:" + clientID);
 
             // Bật cam lại cho chính mình
             try {
+                webcam = new WebcamCapture();
                 byte[] frameData = webcam.captureFrame();
                 if (frameData != null) {
                     BufferedImage img = ImageIO.read(new ByteArrayInputStream(frameData));
@@ -441,25 +440,20 @@ public class frmVideoRoom extends javax.swing.JFrame {
 
         } else {
             btnVideo.setText("Bật Video");
-            System.out.println("📷 Camera tắt");
+            System.out.println("Camera off");
 
             // Gửi thông báo tắt cam tới các client khác
             chatClient.sendMessage("CAM_OFF:" + clientID);
 
-            if (label == null) {
-                label = new JLabel("Camera Off", SwingConstants.CENTER);
-                label.setPreferredSize(new Dimension(160, 120));
-                label.setOpaque(true);
-                label.setBackground(Color.BLACK);
-                label.setForeground(Color.WHITE);
-                videoPanels.put(clientID, label);
-                videoPanelGrid.add(label);
-            }
+            updateVideoPanel(clientID, null);
 
-            label.setIcon(new ImageIcon(noCamImage));
-            label.setText("Camera Off");
+            
             videoPanelGrid.revalidate();
             videoPanelGrid.repaint();
+            if (webcam != null) {
+                webcam.release();
+                System.out.println("🔌 Webcam released.");
+            }
         }
         
     }//GEN-LAST:event_btnVideoActionPerformed
