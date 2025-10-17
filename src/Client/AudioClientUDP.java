@@ -2,111 +2,129 @@ package Client;
 
 import javax.sound.sampled.*;
 import java.net.*;
-import java.nio.ByteBuffer;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.*;
+import java.util.*;
 
 public class AudioClientUDP {
     private DatagramSocket socket;
     private InetAddress serverAddr;
     private int port = 5001;
-    private AtomicBoolean running = new AtomicBoolean(true);
-    private AtomicBoolean micEnabled = new AtomicBoolean(true);
-    private TargetDataLine micLine;
-    private SourceDataLine speakerLine;
-    private static final int PACKET_SIZE = 4096;
-    private int sendSequence = 0;
+    private volatile boolean running = true;
+    private volatile boolean micEnabled = true;
+
+    private final int PACKET_SIZE = 1024;
+    private final int SAMPLE_RATE = 16000;
+    private final int SAMPLE_SIZE = 16;
+    private final int CHANNELS = 1;
+
+    private final int MAX_BUFFER = 50;
+    private Map<Integer, byte[]> jitterBuffer = new ConcurrentHashMap<>();
+    private volatile int expectedSeq = 0;
 
     public AudioClientUDP(String serverIP) throws Exception {
         socket = new DatagramSocket();
-        socket.setReceiveBufferSize(1024 * 1024);
-        socket.setSendBufferSize(1024 * 1024);
         serverAddr = InetAddress.getByName(serverIP);
     }
 
-    /** Start gửi âm thanh */
+    /** Start sending mic audio */
     public void startSending() {
         new Thread(() -> {
             try {
                 AudioFormat format = getAudioFormat();
                 DataLine.Info info = new DataLine.Info(TargetDataLine.class, format);
-                micLine = (TargetDataLine) AudioSystem.getLine(info);
-                micLine.open(format);
-                micLine.start();
+                TargetDataLine mic = (TargetDataLine) AudioSystem.getLine(info);
+                mic.open(format);
+                mic.start();
 
-                byte[] audioBuffer = new byte[PACKET_SIZE - 4];
-                ByteBuffer sendBuf = ByteBuffer.allocate(PACKET_SIZE);
+                byte[] buffer = new byte[PACKET_SIZE];
+                int seq = 0;
+                System.out.println("🎤 Sending audio...");
 
-                while (running.get()) {
-                    int bytesRead = 0;
-                    if (micEnabled.get()) {
-                        bytesRead = micLine.read(audioBuffer, 0, audioBuffer.length);
-                    }
+                while (running) {
+                    if (micEnabled) {
+                        int bytesRead = mic.read(buffer, 0, buffer.length);
+                        byte[] data = new byte[bytesRead + 4];
+                        data[0] = (byte)((seq >> 24) & 0xFF);
+                        data[1] = (byte)((seq >> 16) & 0xFF);
+                        data[2] = (byte)((seq >> 8) & 0xFF);
+                        data[3] = (byte)(seq & 0xFF);
+                        System.arraycopy(buffer, 0, data, 4, bytesRead);
 
-                    if (bytesRead > 0) {
-                        sendBuf.clear();
-                        sendBuf.putInt(sendSequence++);
-                        sendBuf.put(audioBuffer, 0, bytesRead);
-                        DatagramPacket pkt = new DatagramPacket(sendBuf.array(), bytesRead + 4, serverAddr, port);
+                        DatagramPacket pkt = new DatagramPacket(data, data.length, serverAddr, port);
                         socket.send(pkt);
+                        seq++;
                     } else {
                         Thread.sleep(10);
                     }
                 }
+                mic.close();
             } catch (Exception e) {
-                if (running.get()) e.printStackTrace();
+                if (running) e.printStackTrace();
             }
-        }, "Audio-Sender").start();
+        }).start();
     }
 
-    /** Start nhận âm thanh */
+    /** Start receiving audio */
     public void startReceiving() {
+        // Thread nhận UDP
+        new Thread(() -> {
+            try {
+                byte[] buffer = new byte[PACKET_SIZE + 4];
+                while (running) {
+                    DatagramPacket pkt = new DatagramPacket(buffer, buffer.length);
+                    socket.receive(pkt);
+
+                    int seq = ((buffer[0]&0xFF)<<24)|((buffer[1]&0xFF)<<16)|((buffer[2]&0xFF)<<8)|(buffer[3]&0xFF);
+                    byte[] data = new byte[pkt.getLength()-4];
+                    System.arraycopy(buffer, 4, data, 0, data.length);
+
+                    // Thêm vào jitter buffer
+                    jitterBuffer.put(seq, data);
+                    // Giữ buffer max 50 gói
+                    if (jitterBuffer.size() > MAX_BUFFER) {
+                        jitterBuffer.keySet().removeIf(k -> k < expectedSeq);
+                    }
+                }
+            } catch (Exception e) {
+                if (running) e.printStackTrace();
+            }
+        }).start();
+
+        // Thread phát audio
         new Thread(() -> {
             try {
                 AudioFormat format = getAudioFormat();
                 DataLine.Info info = new DataLine.Info(SourceDataLine.class, format);
-                speakerLine = (SourceDataLine) AudioSystem.getLine(info);
-                speakerLine.open(format);
-                speakerLine.start();
+                SourceDataLine speakers = (SourceDataLine) AudioSystem.getLine(info);
+                speakers.open(format);
+                speakers.start();
 
-                byte[] buffer = new byte[PACKET_SIZE];
-
-                while (running.get()) {
-                    DatagramPacket pkt = new DatagramPacket(buffer, buffer.length);
-                    socket.receive(pkt);
-
-                    ByteBuffer wrap = ByteBuffer.wrap(pkt.getData(), 0, pkt.getLength());
-                    int seq = wrap.getInt(); // sequence number, dùng cho nâng cấp về sau
-                    byte[] audio = new byte[pkt.getLength() - 4];
-                    wrap.get(audio);
-
-                    speakerLine.write(audio, 0, audio.length);
+                while (running) {
+                    byte[] data = jitterBuffer.remove(expectedSeq);
+                    if (data != null) {
+                        speakers.write(data, 0, data.length);
+                    }
+                    expectedSeq++;
+                    Thread.sleep(5);
                 }
+                speakers.close();
             } catch (Exception e) {
-                if (running.get()) e.printStackTrace();
+                if (running) e.printStackTrace();
             }
-        }, "Audio-Receiver").start();
-    }
-
-    public void stop() {
-        running.set(false);
-        if (micLine != null) micLine.close();
-        if (speakerLine != null) speakerLine.close();
-        socket.close();
+        }).start();
     }
 
     public void toggleMic() {
-        micEnabled.set(!micEnabled.get());
-        System.out.println(micEnabled.get() ? "🎤 Micro bật" : "🔇 Micro tắt");
+        micEnabled = !micEnabled;
+        System.out.println(micEnabled ? "🎤 Mic ON" : "🔇 Mic OFF");
     }
-    public boolean isMicEnabled(){
-        return micEnabled.get();
+
+    public void stop() {
+        running = false;
+        socket.close();
     }
+
     private AudioFormat getAudioFormat() {
-        float sampleRate = 16000.0F;
-        int sampleSizeInBits = 16;
-        int channels = 1;
-        boolean signed = true;
-        boolean bigEndian = false;
-        return new AudioFormat(sampleRate, sampleSizeInBits, channels, signed, bigEndian);
+        return new AudioFormat(SAMPLE_RATE, SAMPLE_SIZE, CHANNELS, true, false);
     }
 }
