@@ -5,6 +5,7 @@ import java.net.*;
 import java.sql.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import Server.MyConnection;
+
 public class ChatServerTCP {
     private int port = 6000;
     private CopyOnWriteArrayList<ClientHandler> clients = new CopyOnWriteArrayList<>();
@@ -41,9 +42,9 @@ public class ChatServerTCP {
 
                     // Nếu client gửi EXIT:<userID>|<roomCode>
                     if (msg.startsWith("EXIT:")) {
-                        handleExit(msg); // handleExit đã broadcast rồi
+                        handleExit(msg); // đã broadcast trong handleExit
                         clients.remove(this); // remove client hiện tại
-                        break; // kết thúc luồng
+                        break; // kết thúc thread
                     } else {
                         broadcast(msg);
                     }
@@ -56,6 +57,7 @@ public class ChatServerTCP {
             }
         }
 
+        /** Xử lý khi user rời phòng và broadcast cho tất cả client khác **/
         private void handleExit(String msg) {
             try {
                 // Cú pháp: EXIT:<userID>|<roomCode>
@@ -65,14 +67,14 @@ public class ChatServerTCP {
                 String userID = parts[0].trim();
                 String roomCode = parts[1].trim();
 
-                // 🔹 Broadcast cho tất cả client khác
+                // 🔹 Gửi thông báo cho tất cả client khác
                 for (ClientHandler c : clients) {
                     if (c != this) {
                         c.sendMessage("EXIT:" + userID);
                     }
                 }
 
-                // Cập nhật thời gian rời phòng trong DB
+                // 🔹 Cập nhật thời gian rời phòng trong DB
                 updateLeaveTime(userID, roomCode);
 
                 System.out.println("👋 Người dùng rời phòng: " + userID + " | Phòng: " + roomCode);
@@ -81,13 +83,13 @@ public class ChatServerTCP {
             }
         }
 
-
         /** Cập nhật LeaveTime vào database **/
         private void updateLeaveTime(String userID, String roomCode) {
             String sql = """
                 UPDATE RoomMembers
                 SET LeaveTime = GETDATE()
-                WHERE UserID = ? AND RoomID = (SELECT RoomID FROM VideoRooms WHERE RoomCode = ?)
+                WHERE UserID = ? 
+                  AND RoomID = (SELECT RoomID FROM VideoRooms WHERE RoomCode = ?)
                   AND LeaveTime IS NULL
             """;
 
@@ -116,11 +118,16 @@ public class ChatServerTCP {
             }
         }
 
-        private void sendMessage(String string) {
-           out.println(string);
+        /** Gửi tin nhắn cho client này **/
+        private void sendMessage(String msg) {
+            try {
+                out.println(msg);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
     }
-    
+
     public static void main(String[] args) throws Exception {
         new ChatServerTCP();
     }

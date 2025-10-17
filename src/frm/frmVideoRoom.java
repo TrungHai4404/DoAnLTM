@@ -147,7 +147,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
                             if (msg.startsWith("EXIT:")) {
                                 String clientID = msg.substring(5);
                                 SwingUtilities.invokeLater(() -> removeVideoPanel(clientID));
-
+                                System.out.println("🧹 Xóa video của: " + clientID);
                             } else if (msg.startsWith("CAM_OFF:")) {
                                 String clientID = msg.substring(8).trim();
                                 SwingUtilities.invokeLater(() -> updateVideoPanel(clientID, null));
@@ -359,24 +359,28 @@ public class frmVideoRoom extends javax.swing.JFrame {
     }// </editor-fold>//GEN-END:initComponents
 
     private void btnEndActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnEndActionPerformed
-         try {
-            chatClient.sendMessage("EXIT:" + localClientID);
-            removeVideoPanel(localClientID);
-            webcam.release();
-            int confirm = JOptionPane.showConfirmDialog(this, "Bạn có chắc muốn rời phòng không?", "Xác nhận", JOptionPane.YES_NO_OPTION);
-            if (confirm == JOptionPane.YES_OPTION) {
-            // Gọi DAO để cập nhật thời gian rời
-            roomDao.markLeave(roomDao.getRoomIdByCode(roomCode), currentUser.getId().toString());
-            // Xóa người đó khỏi danh sách hiển thị
-            removeUserFromList(currentUser.getFullName());
-            //Xóa khung ảnh khỏi videoPanelGrid
-                
-            // Đóng phòng hoặc quay lại menu chính
-            new frmMainMenu(currentUser).setVisible(true);
-            this.dispose();
-        }
-        } catch (Exception e) {
-            e.printStackTrace();
+        int confirm = JOptionPane.showConfirmDialog(this, "Bạn có chắc muốn rời phòng không?", "Xác nhận", JOptionPane.YES_NO_OPTION);
+        if (confirm == JOptionPane.YES_OPTION) {
+            try {
+                // Gửi tin EXIT:<userID>|<roomCode> tới server
+                if (chatClient != null) {
+                    String exitMsg = "EXIT:" + currentUser.getUsername().toString() + "|" + roomCode;
+                    chatClient.sendMessage(exitMsg);
+                }
+
+                // Xóa video panel local
+                removeVideoPanel(localClientID);
+
+                // Giải phóng webcam
+                webcam.release();
+
+                // Cập nhật LeaveTime trong DB được server xử lý
+                // Quay lại menu chính
+                new frmMainMenu(currentUser).setVisible(true);
+                this.dispose();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
     }//GEN-LAST:event_btnEndActionPerformed
 
@@ -395,13 +399,11 @@ public class frmVideoRoom extends javax.swing.JFrame {
 
     private void formWindowClosing(java.awt.event.WindowEvent evt) {//GEN-FIRST:event_formWindowClosing
         try {
-            // 🔹 Gửi thông báo rời phòng tới server
-            if (chatClient != null && localClientID != null) {
-                chatClient.sendMessage("EXIT:" + localClientID);
+            if (chatClient != null) {
+                String exitMsg = "EXIT:" + currentUser.getUsername().toString() + "|" + roomCode;
+                chatClient.sendMessage(exitMsg);
             }
-            // 🔹 Giải phóng camera
             webcam.release();
-            // 🔹 Xóa video panel của mình trên giao diện
             removeVideoPanel(localClientID);
             System.out.println("👋 Người dùng đã rời phòng: " + localClientID);
         } catch (Exception ex) {
