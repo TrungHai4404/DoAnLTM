@@ -67,6 +67,10 @@ public class frmVideoRoom extends javax.swing.JFrame {
         this.roomCode = roomCode;
         this.isHost = isHost;
         this.currentUser = user;
+        localClientID = currentUser.getId();
+        localClientUsername = currentUser.getUsername();
+        System.out.println(localClientID);
+        System.out.println(localClientUsername);
         initComponents();
         list_ThanhVien.setModel(memberModel);
         txtRoomID.setText(roomCode);
@@ -78,8 +82,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
     }
 
     private void initNetworking() {
-        localClientID = currentUser.getId();
-        localClientUsername = currentUser.getUsername();
+       
         // Cấu hình layout
         videoPanelGrid.setLayout(new FlowLayout(FlowLayout.LEFT, 5, 5));
          // Tạo ảnh mặc định "No Camera"
@@ -148,16 +151,16 @@ public class frmVideoRoom extends javax.swing.JFrame {
                             if (msg.startsWith("EXIT:")) {
                                 String clientID = msg.substring(5).trim();
                                 SwingUtilities.invokeLater(() -> removeVideoPanel(localClientID));
-                                SwingUtilities.invokeLater(() ->removeUserFromList(clientID));
-                                System.out.println("🧹 Xóa video của: " + clientID);
+                                SwingUtilities.invokeLater(() ->removeUserFromList(localClientID));
+                                System.out.println("Xóa video của: " + localClientUsername);
                             } else if (msg.startsWith("CAM_OFF:")) {
                                 String clientID = msg.substring(8).trim();
                                 SwingUtilities.invokeLater(() -> updateVideoPanel(clientID, null));
-                                System.out.println("📷 Người dùng " + clientID + " đã tắt camera");
+                                System.out.println("📷 Người dùng " + localClientUsername + " đã tắt camera");
 
                             } else if (msg.startsWith("CAM_ON:")) {
                                 String clientID = msg.substring(7).trim();
-                                System.out.println("📷 Người dùng " + clientID + " đã bật camera");
+                                System.out.println("📷 Người dùng " + localClientUsername + " đã bật camera");
                                 // Không cần làm gì thêm — video sẽ tự hiển thị khi frame mới đến
 
                             } else {
