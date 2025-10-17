@@ -7,8 +7,8 @@ public class ChatClientTCP {
     private Socket socket;
     private BufferedReader in;
     private PrintWriter out;
-
-    public ChatClientTCP(String serverIP, int port) throws Exception {
+    private int port = 6000;
+    public ChatClientTCP(String serverIP) throws Exception {
         socket = new Socket(serverIP, port);
         in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
         out = new PrintWriter(socket.getOutputStream(), true);

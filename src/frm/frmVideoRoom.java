@@ -1,5 +1,6 @@
 package frm;
 
+import Client.AudioClientUDP;
 import Client.ChatClientTCP;
 import Client.VideoClientUDP;
 import Client.WebcamCapture;
@@ -10,7 +11,10 @@ import dao.VideoRoomDao;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.FontMetrics;
 import java.awt.Graphics2D;
+import java.awt.GridLayout;
 import java.awt.Image;
 import static java.awt.SystemColor.text;
 import java.awt.image.BufferedImage;
@@ -27,6 +31,7 @@ import javax.swing.DefaultListModel;
 import javax.swing.ImageIcon;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
+import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import model.User;
 
@@ -38,67 +43,79 @@ public class frmVideoRoom extends javax.swing.JFrame {
     private String localClientID;
     // map clientID -> JLabel (video nhỏ)
     private ConcurrentHashMap<String, JLabel> videoPanels = new ConcurrentHashMap<>();
+    // Khong webcame
+    private BufferedImage noCamImage;
+    //Danh sách thành viên
     private DefaultListModel<String> memberModel = new DefaultListModel<>();
     private ConcurrentHashMap<String, String> clientUsernames = new ConcurrentHashMap<>();
     private final VideoRoomDao roomDao = new VideoRoomDao();
     private ChatMessageDao chatDao = new ChatMessageDao();
     private UserDao userDao = new UserDao();
+    // Các thuộc tính
     private VideoClientUDP videoClient;
     private ChatClientTCP chatClient;
+    private AudioClientUDP audioClient;
 
     // Bật/tắt video, mic
+    WebcamCapture webcam = new WebcamCapture();
     private boolean videoEnabled = true;
     private boolean micEnabled = true;
             
 
     public frmVideoRoom(String roomCode, boolean isHost, User user) {
-        
         this.roomCode = roomCode;
         this.isHost = isHost;
         this.currentUser = user;
         initComponents();
         list_ThanhVien.setModel(memberModel);
         txtRoomID.setText(roomCode);
-        videoPanelGrid.setLayout(new FlowLayout(FlowLayout.LEFT, 5, 5));
+        
         initNetworking();
-        initActions();
         loadMembers();
         // Cập nhật danh sách thành viên mỗi 5 giây
         new javax.swing.Timer(5000, e -> loadMembers()).start();
-
     }
-    // Constructor mặc định test (không cần truyền roomID)
 
-    
     private void initNetworking() {
-        localClientID = currentUser.getId();
+        localClientID = currentUser.getUsername();
+        // Cấu hình layout
+        videoPanelGrid.setLayout(new FlowLayout(FlowLayout.LEFT, 5, 5));
+         // Tạo ảnh mặc định "No Camera"
+        noCamImage = createNoCamImage(160, 120, "Camera Off");
         try {
             videoClient = new VideoClientUDP("192.168.1.2");
-            chatClient = new ChatClientTCP("192.168.1.2", 6000);
-
-            WebcamCapture webcam = new WebcamCapture();
-
+            audioClient = new AudioClientUDP("192.168.1.2");
+            chatClient = new ChatClientTCP("192.168.1.2");
+            // Bắt đầu luồng audio
+            audioClient.startSending();
+            audioClient.startReceiving();
             // Thread gửi video
             new Thread(() -> {
                 try {
                     while (true) {
-                        if (!videoEnabled) { Thread.sleep(100); continue; }
+                        if (!videoEnabled) { 
+                            Thread.sleep(200); 
+                            continue; 
+                        }
+
                         byte[] frameData = webcam.captureFrame();
                         if (frameData != null && frameData.length > 0) {
                             BufferedImage img = ImageIO.read(new ByteArrayInputStream(frameData));
                             BufferedImage resized = resizeFrame(img, 160, 120);
+
+                            // Gửi frame
                             ByteArrayOutputStream baos = new ByteArrayOutputStream();
                             ImageIO.write(resized, "jpg", baos);
                             byte[] smallFrame = baos.toByteArray();
-
                             videoClient.sendFrame(smallFrame, localClientID);
+
+                            // Cập nhật hình preview local
                             SwingUtilities.invokeLater(() -> updateVideoPanel(localClientID, resized));
                         }
                         Thread.sleep(100);
                     }
                 } catch (Exception e) { e.printStackTrace(); }
             }).start();
-
             // Thread nhận video
             new Thread(() -> {
                 try {
@@ -129,6 +146,18 @@ public class frmVideoRoom extends javax.swing.JFrame {
                         if (msg != null) {
                             if (msg.startsWith("EXIT:")) {
                                 String clientID = msg.substring(5);
+                                SwingUtilities.invokeLater(() -> removeVideoPanel(clientID));
+
+                            } else if (msg.startsWith("CAM_OFF:")) {
+                                String clientID = msg.substring(8).trim();
+                                SwingUtilities.invokeLater(() -> updateVideoPanel(clientID, null));
+                                System.out.println("📷 Người dùng " + clientID + " đã tắt camera");
+
+                            } else if (msg.startsWith("CAM_ON:")) {
+                                String clientID = msg.substring(7).trim();
+                                System.out.println("📷 Người dùng " + clientID + " đã bật camera");
+                                // Không cần làm gì thêm — video sẽ tự hiển thị khi frame mới đến
+
                             } else {
                                 SwingUtilities.invokeLater(() -> txt_KhungChat.append(msg + "\n"));
                             }
@@ -138,48 +167,9 @@ public class frmVideoRoom extends javax.swing.JFrame {
                     e.printStackTrace();
                 }
             }).start();
-            // Release webcam khi đóng form
-            addWindowListener(new java.awt.event.WindowAdapter() {
-                @Override
-                public void windowClosing(java.awt.event.WindowEvent e) {
-                    try {
-                        if (chatClient != null) {
-                            webcam.release();
-                        }
-                    } catch (Exception ex) {
-                        ex.printStackTrace();
-                    }
-                }
-            });
         } catch (Exception e) {
             e.printStackTrace();
         } 
-    }
-
-
-    private void initActions() {
-        btnGui.addActionListener(e -> {
-            String text = txtVanBan.getText().trim();
-            if (!text.isEmpty()) {
-                try {
-                    chatClient.sendMessage(currentUser.getFullName() + ": " + text);
-                    txtVanBan.setText("");
-                    chatDao.saveMessage(roomDao.getRoomIdByCode(roomCode), currentUser.getId(), text);
-                } catch (Exception ex) {
-                    ex.printStackTrace();
-                }
-            }
-        });
-        btnVideo.addActionListener(e -> {
-            videoEnabled = !videoEnabled;
-            btnVideo.setText(videoEnabled ? "Tắt Video" : "Bật Video");
-        });
-
-        btnMic.addActionListener(e -> {
-            micEnabled = !micEnabled;
-            btnMic.setText(micEnabled ? "Tắt Mic" : "Bật Mic");
-        });
-        
     }
     private void loadMembers() {
         Set<String> uniqueMembers = new LinkedHashSet<>(roomDao.getMembersByRoomCode(roomCode));
@@ -208,27 +198,77 @@ public class frmVideoRoom extends javax.swing.JFrame {
         return resized;
     }
 
+    // === Hàm cập nhật khung hình video ===
     private void updateVideoPanel(String clientID, BufferedImage img) {
         JLabel label = videoPanels.get(clientID);
+
         if (label == null) {
-            // Tạo JLabel mới cho client mới
-            label = new JLabel();
+            // 🧩 Tạo JLabel mới cho client
+            label = new JLabel("Đang kết nối...", SwingConstants.CENTER);
             label.setPreferredSize(new Dimension(160, 120));
             label.setOpaque(true);
-            label.setBackground(Color.WHITE);
+            label.setBackground(Color.BLACK);
+            label.setForeground(Color.WHITE);
+            label.setFont(new Font("Arial", Font.PLAIN, 12));
 
             videoPanels.put(clientID, label);
-            videoPanelGrid.add(label); // Thêm theo thứ tự clientID
-
-            // Cập nhật lại layout
-            videoPanelGrid.revalidate();
-            videoPanelGrid.repaint();
+            videoPanelGrid.add(label);
+        }
+        
+        // 🔄 Cập nhật ảnh
+        if (img == null) {
+            label.setIcon(new ImageIcon(noCamImage));
+            label.setText("Camera Off");
+        } else {
+            label.setIcon(new ImageIcon(img));
+            label.setText(null);
         }
 
-        // Cập nhật hình ảnh
-        label.setIcon(new ImageIcon(img));
+        // 🧱 Làm mới layout
+        videoPanelGrid.revalidate();
+        videoPanelGrid.repaint();
     }
-  
+    // === Khi người dùng tắt cam ===
+    private void handleToggleCamera() {
+        videoEnabled = !videoEnabled;
+        if (!videoEnabled) {
+            // Hiển thị hình ảnh tắt cam
+            updateVideoPanel(localClientID, null);
+        }
+    }
+    // === Khi người dùng rời phòng ===
+    private void removeVideoPanel(String clientID) {
+        JLabel label = videoPanels.remove(clientID);
+        if (label != null) {
+            videoPanelGrid.remove(label);
+            videoPanelGrid.revalidate();
+            videoPanelGrid.repaint();
+            System.out.println("🧹 Đã xóa video của " + clientID);
+        }
+    }
+    // === Khi nhận tin nhắn rời phòng từ server ===
+    private void handleExitMessage(String msg) {
+        if (msg.startsWith("EXIT:")) {
+            String clientID = msg.substring(5).trim();
+            removeVideoPanel(clientID);
+        }
+    }
+    // === Hàm tạo ảnh "Camera Off" ===
+    private BufferedImage createNoCamImage(int width, int height, String text) {
+        BufferedImage img = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = img.createGraphics();
+        g.setColor(Color.GRAY);
+        g.fillRect(0, 0, width, height);
+        g.setColor(Color.WHITE);
+        g.setFont(new Font("Arial", Font.BOLD, 16));
+
+        FontMetrics fm = g.getFontMetrics();
+        int x = (width - fm.stringWidth(text)) / 2;
+        int y = (height - fm.getHeight()) / 2 + fm.getAscent();
+        g.drawString(text, x, y);
+        g.dispose();
+        return img;
+    }
     @SuppressWarnings("unchecked")
     // <editor-fold defaultstate="collapsed" desc="Generated Code">//GEN-BEGIN:initComponents
     private void initComponents() {
@@ -249,6 +289,11 @@ public class frmVideoRoom extends javax.swing.JFrame {
         txtRoomID = new javax.swing.JTextField();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
+        addWindowListener(new java.awt.event.WindowAdapter() {
+            public void windowClosing(java.awt.event.WindowEvent evt) {
+                formWindowClosing(evt);
+            }
+        });
         getContentPane().setLayout(new org.netbeans.lib.awtextra.AbsoluteLayout());
 
         videoPanelGrid.setBorder(javax.swing.BorderFactory.createLineBorder(new java.awt.Color(0, 0, 0)));
@@ -282,11 +327,21 @@ public class frmVideoRoom extends javax.swing.JFrame {
         jLabel2.setText("Khung chat");
         getContentPane().add(jLabel2, new org.netbeans.lib.awtextra.AbsoluteConstraints(674, 237, 71, -1));
 
-        btnMic.setText("Mic");
+        btnMic.setText("Tắt Mic");
+        btnMic.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                btnMicActionPerformed(evt);
+            }
+        });
         getContentPane().add(btnMic, new org.netbeans.lib.awtextra.AbsoluteConstraints(185, 489, -1, -1));
 
-        btnVideo.setText("Video");
-        getContentPane().add(btnVideo, new org.netbeans.lib.awtextra.AbsoluteConstraints(359, 489, -1, -1));
+        btnVideo.setText("Tắt Video");
+        btnVideo.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                btnVideoActionPerformed(evt);
+            }
+        });
+        getContentPane().add(btnVideo, new org.netbeans.lib.awtextra.AbsoluteConstraints(340, 490, -1, -1));
 
         btnEnd.setText("Kết thúc");
         btnEnd.addActionListener(new java.awt.event.ActionListener() {
@@ -304,22 +359,110 @@ public class frmVideoRoom extends javax.swing.JFrame {
     }// </editor-fold>//GEN-END:initComponents
 
     private void btnEndActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnEndActionPerformed
-        int confirm = JOptionPane.showConfirmDialog(this, "Bạn có chắc muốn rời phòng không?", "Xác nhận", JOptionPane.YES_NO_OPTION);
-
-        if (confirm == JOptionPane.YES_OPTION) {
+        
+         try {
+            chatClient.sendMessage("EXIT:" + localClientID);
+            removeVideoPanel(localClientID);
+            webcam.release();
+            int confirm = JOptionPane.showConfirmDialog(this, "Bạn có chắc muốn rời phòng không?", "Xác nhận", JOptionPane.YES_NO_OPTION);
+            if (confirm == JOptionPane.YES_OPTION) {
             // Gọi DAO để cập nhật thời gian rời
             roomDao.markLeave(roomDao.getRoomIdByCode(roomCode), currentUser.getId().toString());
             // Xóa người đó khỏi danh sách hiển thị
             removeUserFromList(currentUser.getFullName());
             // Đóng phòng hoặc quay lại menu chính
-            this.dispose();
             new frmMainMenu(currentUser).setVisible(true);
+            this.dispose();
+        }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }//GEN-LAST:event_btnEndActionPerformed
 
     private void btnGuiActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnGuiActionPerformed
-        
+        String text = txtVanBan.getText().trim();
+            if (!text.isEmpty()) {
+                try {
+                    chatClient.sendMessage(currentUser.getFullName() + ": " + text);
+                    txtVanBan.setText("");
+                    chatDao.saveMessage(roomDao.getRoomIdByCode(roomCode), currentUser.getId(), text);
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+            }
     }//GEN-LAST:event_btnGuiActionPerformed
+
+    private void formWindowClosing(java.awt.event.WindowEvent evt) {//GEN-FIRST:event_formWindowClosing
+        try {
+            // 🔹 Gửi thông báo rời phòng tới server
+            if (chatClient != null && localClientID != null) {
+                chatClient.sendMessage("EXIT:" + localClientID);
+            }
+            // 🔹 Giải phóng camera
+            webcam.release();
+            // 🔹 Xóa video panel của mình trên giao diện
+            removeVideoPanel(localClientID);
+            System.out.println("👋 Người dùng đã rời phòng: " + localClientID);
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+    }//GEN-LAST:event_formWindowClosing
+
+    private void btnVideoActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnVideoActionPerformed
+        videoEnabled = !videoEnabled;
+        String clientID = localClientID;
+        JLabel label = videoPanels.get(clientID);
+
+        if (videoEnabled) {
+            btnVideo.setText("Tắt Video");
+            System.out.println("📷 Camera bật lại");
+
+            // Gửi thông báo bật cam tới các client khác
+            chatClient.sendMessage("CAM_ON:" + clientID);
+
+            // Bật cam lại cho chính mình
+            try {
+                byte[] frameData = webcam.captureFrame();
+                if (frameData != null) {
+                    BufferedImage img = ImageIO.read(new ByteArrayInputStream(frameData));
+                    BufferedImage resized = resizeFrame(img, 160, 120);
+                    updateVideoPanel(clientID, resized);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
+        } else {
+            btnVideo.setText("Bật Video");
+            System.out.println("📷 Camera tắt");
+
+            // Gửi thông báo tắt cam tới các client khác
+            chatClient.sendMessage("CAM_OFF:" + clientID);
+
+            if (label == null) {
+                label = new JLabel("Camera Off", SwingConstants.CENTER);
+                label.setPreferredSize(new Dimension(160, 120));
+                label.setOpaque(true);
+                label.setBackground(Color.BLACK);
+                label.setForeground(Color.WHITE);
+                videoPanels.put(clientID, label);
+                videoPanelGrid.add(label);
+            }
+
+            label.setIcon(new ImageIcon(noCamImage));
+            label.setText("Camera Off");
+            videoPanelGrid.revalidate();
+            videoPanelGrid.repaint();
+        }
+        
+    }//GEN-LAST:event_btnVideoActionPerformed
+
+    private void btnMicActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnMicActionPerformed
+        if (audioClient != null) {
+            audioClient.toggleMic();
+            btnMic.setText(audioClient.isMicEnabled() ? "Tắt Mic" : "Bật Mic");
+        }
+    }//GEN-LAST:event_btnMicActionPerformed
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JButton btnEnd;
