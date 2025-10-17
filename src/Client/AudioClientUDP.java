@@ -88,9 +88,14 @@ public class AudioClientUDP {
     }
 
     // 🎤 Bật/Tắt micro
-    public void toggleMic() {
+    public boolean toggleMic() { // Sửa từ void thành boolean
         micEnabled = !micEnabled;
-        System.out.println(micEnabled ? "🎙️ Micro bật" : "🔇 Micro tắt");
+        if (micEnabled) {
+            System.out.println("🎤 Mic đã được bật.");
+        } else {
+            System.out.println("🔇 Mic đã được tắt.");
+        }
+        return micEnabled; // Trả về trạng thái mới của mic
     }
 
     private AudioFormat getAudioFormat() {

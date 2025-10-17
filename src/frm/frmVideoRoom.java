@@ -147,6 +147,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
                             if (msg.startsWith("EXIT:")) {
                                 String clientID = msg.substring(5);
                                 SwingUtilities.invokeLater(() -> removeVideoPanel(clientID));
+                                SwingUtilities.invokeLater(() ->removeUserFromList(clientID));
                                 System.out.println("🧹 Xóa video của: " + clientID);
                             } else if (msg.startsWith("CAM_OFF:")) {
                                 String clientID = msg.substring(8).trim();
@@ -462,14 +463,16 @@ public class frmVideoRoom extends javax.swing.JFrame {
     }//GEN-LAST:event_btnVideoActionPerformed
 
     private void btnMicActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnMicActionPerformed
-        micEnabled = !micEnabled;
-        if(micEnabled)
-            btnMic.setText("Tắt mic");
-        else
-            btnMic.setText("Bật mic");
         if (audioClient != null) {
-            audioClient.toggleMic();
+        // Gọi hàm toggleMic() và nhận lại trạng thái mới
+        boolean isMicNowEnabled = audioClient.toggleMic();
+        // Cập nhật text của button dựa trên trạng thái mới
+        if (isMicNowEnabled) {
+            btnMic.setText("Tắt Mic"); // Nếu mic đang BẬT, button sẽ hiển thị "Tắt Mic"
+        } else {
+            btnMic.setText("Bật Mic");  // Nếu mic đang TẮT, button sẽ hiển thị "Bật Mic"
         }
+    }
         
     }//GEN-LAST:event_btnMicActionPerformed
     
