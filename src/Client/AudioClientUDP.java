@@ -2,6 +2,7 @@ package Client;
 
 import javax.sound.sampled.*;
 import java.net.*;
+import java.nio.channels.ClosedChannelException;
 
 public class AudioClientUDP {
     private DatagramSocket socket;
@@ -9,7 +10,7 @@ public class AudioClientUDP {
     private int port = 5001;
     private boolean running = true;
     private boolean micEnabled = true;
-    private static final byte[] HEARTBEAT_DATA = "HBEAT".getBytes();
+
     private TargetDataLine mic;
     private SourceDataLine speakers;
     private AudioFormat format;
@@ -24,17 +25,11 @@ public class AudioClientUDP {
     public void startSending() {
         new Thread(() -> {
             try {
-                // ... khởi tạo mic ...
                 DataLine.Info info = new DataLine.Info(TargetDataLine.class, format);
                 mic = (TargetDataLine) AudioSystem.getLine(info);
-
-                // Thêm một kiểm tra null để phòng trường hợp hiếm
-                if (mic == null) {
-                    throw new LineUnavailableException("Hệ thống không tìm thấy microphone nào.");
-                }
-
                 mic.open(format);
                 mic.start();
+
                 byte[] buffer = new byte[4096];
                 System.out.println("🎤 Bắt đầu gửi âm thanh...");
 
@@ -46,23 +41,16 @@ public class AudioClientUDP {
                             socket.send(pkt);
                         }
                     } else {
-                        // 💡 BƯỚC 2: Khi mic tắt, gửi heartbeat 2 giây một lần
-                        DatagramPacket heartbeatPkt = new DatagramPacket(HEARTBEAT_DATA, HEARTBEAT_DATA.length, serverAddr, port);
-                        socket.send(heartbeatPkt);
-                        Thread.sleep(2000); // Gửi heartbeat và nghỉ 2 giây
+                        // Nếu mic tắt, nghỉ 100ms tránh CPU cao
+                        Thread.sleep(100);
                     }
                 }
-                // ... dọn dẹp mic ...
+
+                mic.stop();
+                mic.close();
+            } catch (SocketException | ClosedChannelException e) {
             } catch (Exception e) {
-                if (running) { // Chỉ in lỗi nếu client vẫn đang chạy
-                    e.printStackTrace();
-                }
-            }finally {
-                // Đảm bảo mic được đóng khi luồng kết thúc
-                if (mic != null) {
-                    mic.stop();
-                    mic.close();
-                }
+                e.printStackTrace();
             }
         }, "Mic-Sender-Thread").start();
     }
@@ -73,17 +61,11 @@ public class AudioClientUDP {
             try {
                 DataLine.Info info = new DataLine.Info(SourceDataLine.class, format);
                 speakers = (SourceDataLine) AudioSystem.getLine(info);
-
-                // 💡 TỐI ƯU 2: Mở loa với một bộ đệm lớn hơn
-                // Kích thước buffer = sampleRate * channels * (bytes per sample) * (buffer duration in seconds)
-                // Ví dụ: 16000 * 1 * 2 * 0.1 = 3200 bytes cho 100ms buffer
-                int bufferSize = (int) format.getSampleRate() * format.getFrameSize() * 2;
-                speakers.open(format, bufferSize); 
-
+                speakers.open(format);
                 speakers.start();
 
                 byte[] buffer = new byte[4096];
-                System.out.println("🔊 Đang nhận và phát âm thanh với buffer " + bufferSize + " bytes...");
+                System.out.println("🔊 Đang nhận và phát âm thanh...");
 
                 while (running) {
                     DatagramPacket pkt = new DatagramPacket(buffer, buffer.length);
@@ -93,6 +75,9 @@ public class AudioClientUDP {
 
                 speakers.drain();
                 speakers.close();
+            } catch (SocketException | ClosedChannelException e) {
+                // Socket đã đóng -> thoát bình thường
+//                break;
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -108,14 +93,9 @@ public class AudioClientUDP {
     }
 
     // 🎤 Bật/Tắt micro
-    public boolean toggleMic() { // Sửa từ void thành boolean
+    public void toggleMic() {
         micEnabled = !micEnabled;
-        if (micEnabled) {
-            System.out.println("🎤 Mic đã được bật.");
-        } else {
-            System.out.println("🔇 Mic đã được tắt.");
-        }
-        return micEnabled; // Trả về trạng thái mới của mic
+        System.out.println(micEnabled ? "🎙️ Micro bật" : "🔇 Micro tắt");
     }
 
     private AudioFormat getAudioFormat() {

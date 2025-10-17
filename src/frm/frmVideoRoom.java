@@ -465,14 +465,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
 
     private void btnMicActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnMicActionPerformed
         if (audioClient != null) {
-            // Gọi hàm toggleMic() và nhận lại trạng thái mới
-            boolean isMicNowEnabled = audioClient.toggleMic();
-            // Cập nhật text của button dựa trên trạng thái mới
-            if (isMicNowEnabled) {
-                btnMic.setText("Tắt Mic"); // Nếu mic đang BẬT, button sẽ hiển thị "Tắt Mic"
-            } else {
-                btnMic.setText("Bật Mic");  // Nếu mic đang TẮT, button sẽ hiển thị "Bật Mic"
-            }
+            audioClient.toggleMic();
         }
         
     }//GEN-LAST:event_btnMicActionPerformed
