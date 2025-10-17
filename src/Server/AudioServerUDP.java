@@ -7,13 +7,13 @@ public class AudioServerUDP {
     private DatagramSocket socket;
     private int port = 5001;
     private CopyOnWriteArrayList<InetSocketAddress> clients = new CopyOnWriteArrayList<>();
-    private final int PACKET_SIZE = 1024 + 4;
+    private final int BUFFER_SIZE = 1024;
 
     public AudioServerUDP() throws Exception {
         socket = new DatagramSocket(port);
-        System.out.println("🎧 Audio UDP Server started on port " + port);
+        System.out.println("🎧 Audio Server started on port " + port);
 
-        byte[] buf = new byte[PACKET_SIZE];
+        byte[] buf = new byte[BUFFER_SIZE];
 
         while (true) {
             DatagramPacket pkt = new DatagramPacket(buf, buf.length);
