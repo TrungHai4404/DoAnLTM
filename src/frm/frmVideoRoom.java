@@ -365,7 +365,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
             try {
                 // Gửi tin EXIT:<userID>|<roomCode> tới server
                 if (chatClient != null) {
-                    String exitMsg = "EXIT:" + currentUser.getUsername().toString() + "|" + roomCode;
+                    String exitMsg = "EXIT:" + currentUser.getId().toString() + "|" + roomCode;
                     chatClient.sendMessage(exitMsg);
                 }
 
@@ -402,7 +402,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
     private void formWindowClosing(java.awt.event.WindowEvent evt) {//GEN-FIRST:event_formWindowClosing
         try {
             if (chatClient != null) {
-                String exitMsg = "EXIT:" + currentUser.getUsername().toString() + "|" + roomCode;
+                String exitMsg = "EXIT:" + currentUser.getId().toString() + "|" + roomCode;
                 chatClient.sendMessage(exitMsg);
             }
             webcam.release();
@@ -468,9 +468,9 @@ public class frmVideoRoom extends javax.swing.JFrame {
             audioClient.toggleMic();
         }
         if(audioClient.isMicEnabled()){
-            btnMic.setText("Bật mic");
-        }else
             btnMic.setText("Tắt mic");
+        }else
+            btnMic.setText("Bật mic");
     }//GEN-LAST:event_btnMicActionPerformed
     
     // Variables declaration - do not modify//GEN-BEGIN:variables
