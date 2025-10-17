@@ -2,105 +2,160 @@ package Client;
 
 import javax.sound.sampled.*;
 import java.net.*;
+import java.util.Arrays;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class AudioClientUDP {
+    private final int port = 5001;
+    private final int BUFFER_SIZE = 512; // Kích thước buffer nhỏ hơn để giảm độ trễ
+    private static final byte[] HEARTBEAT_DATA = "HBEAT".getBytes();
+
     private DatagramSocket socket;
     private InetAddress serverAddr;
-    private int port = 5001;
+
+    // 💡 SỬA LỖI: Chuyển mic và speakers thành biến của lớp để có thể truy cập và đóng chúng
+    private TargetDataLine mic;
+    private SourceDataLine speakers;
+
     private volatile boolean running = true;
     private volatile boolean micEnabled = true;
-    private final int BUFFER_SIZE = 512;
 
-    // Jitter buffer để giảm drop
-    private ConcurrentLinkedQueue<byte[]> jitterBuffer = new ConcurrentLinkedQueue<>();
+    // 💡 TỐI ƯU: Jitter buffer
+    private final ConcurrentLinkedQueue<byte[]> jitterBuffer = new ConcurrentLinkedQueue<>();
+    private final int JITTER_BUFFER_MIN_SIZE = 3; // Bắt đầu phát khi có ít nhất 3 gói
 
     public AudioClientUDP(String serverIP) throws Exception {
         socket = new DatagramSocket();
         serverAddr = InetAddress.getByName(serverIP);
     }
 
-    /** Bật/tắt mic */
-    public void toggleMic() {
+    public boolean toggleMic() {
         micEnabled = !micEnabled;
         System.out.println(micEnabled ? "🎤 Micro bật" : "🔇 Micro tắt");
+        return micEnabled;
     }
 
-    /** Ngừng gửi/nhận audio */
     public void stop() {
-        running = false;
-        socket.close();
+        running = false; // Tín hiệu cho các luồng dừng lại
+
+        // 💡 SỬA LỖI: Đóng và giải phóng tài nguyên mic và loa
+        if (mic != null && mic.isOpen()) {
+            mic.stop();
+            mic.close();
+            System.out.println("🎤 Mic đã được giải phóng.");
+        }
+        if (speakers != null && speakers.isOpen()) {
+            speakers.stop();
+            speakers.close();
+            System.out.println("🔊 Loa đã được giải phóng.");
+        }
+
+        // Đóng socket sau cùng để ngắt các luồng đang chờ
+        if (socket != null && !socket.isClosed()) {
+            socket.close();
+        }
+    }
+    
+    public void start() {
+        try {
+            initAudioLines();
+            startSending();
+            startReceiving();
+            startPlaying(); // 💡 SỬA LỖI: Bắt đầu luồng phát âm thanh riêng biệt
+        } catch (LineUnavailableException e) {
+            System.err.println("🔴 LỖI: Không thể truy cập mic/loa. Hãy chắc chắn chúng không bị ứng dụng khác sử dụng và đã được cấp quyền.");
+            stop(); // Dọn dẹp nếu không khởi tạo được
+        }
+    }
+    
+    private void initAudioLines() throws LineUnavailableException {
+        AudioFormat format = getAudioFormat();
+        // Khởi tạo Mic
+        DataLine.Info micInfo = new DataLine.Info(TargetDataLine.class, format);
+        mic = (TargetDataLine) AudioSystem.getLine(micInfo);
+        mic.open(format, BUFFER_SIZE * 2);
+        mic.start();
+
+        // Khởi tạo Loa
+        DataLine.Info speakerInfo = new DataLine.Info(SourceDataLine.class, format);
+        speakers = (SourceDataLine) AudioSystem.getLine(speakerInfo);
+        speakers.open(format, BUFFER_SIZE * 4); // Buffer loa lớn hơn một chút
+        speakers.start();
     }
 
-    /** Bắt đầu gửi âm thanh */
-    public void startSending() {
+    private void startSending() {
         new Thread(() -> {
-            try {
-                AudioFormat format = getAudioFormat();
-                DataLine.Info info = new DataLine.Info(TargetDataLine.class, format);
-                TargetDataLine mic = (TargetDataLine) AudioSystem.getLine(info);
-                mic.open(format);
-                mic.start();
-
-                byte[] buffer = new byte[BUFFER_SIZE];
-
-                while (running) {
+            byte[] buffer = new byte[BUFFER_SIZE];
+            while (running) {
+                try {
                     if (micEnabled) {
                         int bytesRead = mic.read(buffer, 0, buffer.length);
                         if (bytesRead > 0) {
-                            DatagramPacket pkt = new DatagramPacket(buffer, bytesRead, serverAddr, port);
+                            DatagramPacket pkt = new DatagramPacket(buffer, 0, bytesRead, serverAddr, port);
                             socket.send(pkt);
                         }
                     } else {
-                        Thread.sleep(2); // Mic tắt -> sleep ngắn
+                        // 💡 SỬA LỖI: Gửi heartbeat khi mic tắt
+                        DatagramPacket heartbeatPkt = new DatagramPacket(HEARTBEAT_DATA, HEARTBEAT_DATA.length, serverAddr, port);
+                        socket.send(heartbeatPkt);
+                        Thread.sleep(2000); // Gửi 2 giây một lần
                     }
+                } catch (Exception e) {
+                    if (running) System.err.println("Lỗi gửi audio: " + e.getMessage());
                 }
-                mic.close();
-            } catch (Exception e) {
-                if(running) e.printStackTrace();
             }
-        }).start();
+            System.out.println("Luồng gửi audio đã dừng.");
+        }, "Audio-Sender").start();
     }
 
-    /** Bắt đầu nhận âm thanh */
-    public void startReceiving() {
+    private void startReceiving() {
         new Thread(() -> {
-            try {
-                AudioFormat format = getAudioFormat();
-                DataLine.Info info = new DataLine.Info(SourceDataLine.class, format);
-                SourceDataLine speakers = (SourceDataLine) AudioSystem.getLine(info);
-                speakers.open(format);
-                speakers.start();
-
-                byte[] buffer = new byte[BUFFER_SIZE];
-
-                while (running) {
+            byte[] buffer = new byte[BUFFER_SIZE * 2]; // Buffer nhận lớn hơn một chút
+            while (running) {
+                try {
                     DatagramPacket pkt = new DatagramPacket(buffer, buffer.length);
                     socket.receive(pkt);
-
-                    byte[] data = new byte[pkt.getLength()];
-                    System.arraycopy(pkt.getData(), 0, data, 0, pkt.getLength());
-                    jitterBuffer.offer(data);
-
-                    // Phát ngay khi có gói
-                    byte[] playData = jitterBuffer.poll();
-                    if (playData != null) {
-                        speakers.write(playData, 0, playData.length);
+                    
+                    // Chỉ thêm vào buffer nếu là dữ liệu âm thanh, không phải heartbeat
+                    byte[] receivedData = Arrays.copyOf(pkt.getData(), pkt.getLength());
+                    if (!Arrays.equals(receivedData, HEARTBEAT_DATA)) {
+                        jitterBuffer.offer(receivedData);
                     }
+                } catch (Exception e) {
+                    if (running) System.err.println("Lỗi nhận audio: " + e.getMessage());
                 }
-                speakers.drain();
-                speakers.close();
-            } catch (Exception e) {
-                if(running) e.printStackTrace();
             }
-        }).start();
+             System.out.println("Luồng nhận audio đã dừng.");
+        }, "Audio-Receiver").start();
     }
 
-    /** Audio format */
+    // 💡 SỬA LỖI: Luồng riêng để phát âm thanh từ Jitter Buffer
+    private void startPlaying() {
+        new Thread(() -> {
+            while (running) {
+                try {
+                    // Chỉ phát khi buffer có đủ dữ liệu để đảm bảo mượt mà
+                    if (jitterBuffer.size() >= JITTER_BUFFER_MIN_SIZE) {
+                        byte[] data = jitterBuffer.poll();
+                        if (data != null) {
+                            speakers.write(data, 0, data.length);
+                        }
+                    } else {
+                        // Nếu buffer rỗng, đợi một chút
+                        Thread.sleep(10); 
+                    }
+                } catch (Exception e) {
+                    if (running) System.err.println("Lỗi phát audio: " + e.getMessage());
+                }
+            }
+             System.out.println("Luồng phát audio đã dừng.");
+        }, "Audio-Player").start();
+    }
+
     private AudioFormat getAudioFormat() {
-        float sampleRate = 44100.0F; // Chuẩn 44.1kHz
+        float sampleRate = 16000.0F; // 💡 TỐI ƯU: Dùng 16kHz, tốt hơn cho voice chat và tương thích rộng rãi
         int sampleSizeInBits = 16;
-        int channels = 1; // mono
+        int channels = 1;
         boolean signed = true;
         boolean bigEndian = false;
         return new AudioFormat(sampleRate, sampleSizeInBits, channels, signed, bigEndian);

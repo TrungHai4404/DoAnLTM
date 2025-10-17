@@ -89,8 +89,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
             audioClient = new AudioClientUDP("192.168.1.2");
             chatClient = new ChatClientTCP("192.168.1.2");
             // Bắt đầu luồng audio
-            audioClient.startSending();
-            audioClient.startReceiving();
+            audioClient.start();
             // Thread gửi video
             new Thread(() -> {
                 try {
@@ -367,7 +366,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
             try {
                 // Gửi tin EXIT:<userID>|<roomCode> tới server
                 if (chatClient != null) {
-                    String exitMsg = "EXIT:" + currentUser.getId().toString() + "|" + roomCode;
+                    String exitMsg = "EXIT:" + localClientID.toString() + "|" + roomCode;
                     chatClient.sendMessage(exitMsg);
                 }
 
@@ -375,8 +374,8 @@ public class frmVideoRoom extends javax.swing.JFrame {
                 SwingUtilities.invokeLater(() -> removeVideoPanel(currentUser.getId()));
 
                 // Giải phóng webcam và audio
-                webcam.release();
-                audioClient.stop();
+                if (audioClient != null) audioClient.stop();
+                if (webcam != null) webcam.release();
 
                 // Quay lại menu chính
                 new frmMainMenu(currentUser).setVisible(true);
@@ -404,13 +403,13 @@ public class frmVideoRoom extends javax.swing.JFrame {
     private void formWindowClosing(java.awt.event.WindowEvent evt) {//GEN-FIRST:event_formWindowClosing
         try {
             if (chatClient != null) {
-                String exitMsg = "EXIT:" + currentUser.getId().toString() + "|" + roomCode;
+                String exitMsg = "EXIT:" + localClientID.toString() + "|" + roomCode;
                 chatClient.sendMessage(exitMsg);
             }
-            webcam.release();
-            audioClient.stop();
+            if (audioClient != null) audioClient.stop();
+            if (webcam != null) webcam.release();
             SwingUtilities.invokeLater(() -> removeVideoPanel(localClientID));
-            System.out.println("👋 Người dùng đã rời phòng: " + localClientID);
+            System.out.println("👋 Người dùng đã rời phòng: " + localClientUsername);
         } catch (Exception ex) {
             ex.printStackTrace();
         }
@@ -467,7 +466,13 @@ public class frmVideoRoom extends javax.swing.JFrame {
 
     private void btnMicActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnMicActionPerformed
         if (audioClient != null) {
-            audioClient.toggleMic();
+            boolean isMicNowEnabled = audioClient.toggleMic();
+
+            if (isMicNowEnabled) {
+                btnMic.setText("Tắt Mic");
+            } else {
+                btnMic.setText("Bật Mic");
+            }
         }
         
     }//GEN-LAST:event_btnMicActionPerformed
