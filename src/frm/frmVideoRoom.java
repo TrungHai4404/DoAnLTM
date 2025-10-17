@@ -250,7 +250,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
     private void handleExitMessage(String msg) {
         if (msg.startsWith("EXIT:")) {
             String clientID = msg.substring(5).trim();
-            removeVideoPanel(clientID);
+            SwingUtilities.invokeLater(() -> removeVideoPanel(clientID));
         }
     }
     // === Hàm tạo ảnh "Camera Off" ===
@@ -369,7 +369,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
                 }
 
                 // Xóa video panel local
-                removeVideoPanel(localClientID);
+                SwingUtilities.invokeLater(() -> removeVideoPanel(localClientID));
 
                 // Giải phóng webcam
                 webcam.release();
@@ -377,6 +377,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
                 // Cập nhật LeaveTime trong DB được server xử lý
                 // Quay lại menu chính
                 new frmMainMenu(currentUser).setVisible(true);
+                Thread.sleep(5000);
                 this.dispose();
             } catch (Exception e) {
                 e.printStackTrace();
@@ -404,7 +405,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
                 chatClient.sendMessage(exitMsg);
             }
             webcam.release();
-            removeVideoPanel(localClientID);
+            SwingUtilities.invokeLater(() -> removeVideoPanel(localClientID));
             System.out.println("👋 Người dùng đã rời phòng: " + localClientID);
         } catch (Exception ex) {
             ex.printStackTrace();
@@ -461,11 +462,17 @@ public class frmVideoRoom extends javax.swing.JFrame {
     }//GEN-LAST:event_btnVideoActionPerformed
 
     private void btnMicActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnMicActionPerformed
+        micEnabled = !micEnabled;
+        if(micEnabled)
+            btnMic.setText("Tắt mic");
+        else
+            btnMic.setText("Bật mic");
         if (audioClient != null) {
             audioClient.toggleMic();
         }
+        
     }//GEN-LAST:event_btnMicActionPerformed
-
+    
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JButton btnEnd;
     private javax.swing.JButton btnGui;
