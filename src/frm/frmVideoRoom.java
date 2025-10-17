@@ -41,6 +41,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
     private boolean isHost;
     private User currentUser;
     private String localClientID;
+    private String localClientUsername;
     // map clientID -> JLabel (video nhỏ)
     private ConcurrentHashMap<String, JLabel> videoPanels = new ConcurrentHashMap<>();
     // Khong webcame
@@ -77,7 +78,8 @@ public class frmVideoRoom extends javax.swing.JFrame {
     }
 
     private void initNetworking() {
-        localClientID = currentUser.getUsername();
+        localClientID = currentUser.getId();
+        localClientUsername = currentUser.getUsername();
         // Cấu hình layout
         videoPanelGrid.setLayout(new FlowLayout(FlowLayout.LEFT, 5, 5));
          // Tạo ảnh mặc định "No Camera"
@@ -370,7 +372,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
                 }
 
                 // Xóa video panel local
-                SwingUtilities.invokeLater(() -> removeVideoPanel(localClientID));
+                SwingUtilities.invokeLater(() -> removeVideoPanel(currentUser.getId()));
 
                 // Giải phóng webcam và audio
                 webcam.release();
