@@ -25,6 +25,16 @@ public class AudioClientUDP {
         new Thread(() -> {
             try {
                 // ... khởi tạo mic ...
+                DataLine.Info info = new DataLine.Info(TargetDataLine.class, format);
+                mic = (TargetDataLine) AudioSystem.getLine(info);
+
+                // Thêm một kiểm tra null để phòng trường hợp hiếm
+                if (mic == null) {
+                    throw new LineUnavailableException("Hệ thống không tìm thấy microphone nào.");
+                }
+
+                mic.open(format);
+                mic.start();
                 byte[] buffer = new byte[4096];
                 System.out.println("🎤 Bắt đầu gửi âm thanh...");
 
@@ -46,6 +56,12 @@ public class AudioClientUDP {
             } catch (Exception e) {
                 if (running) { // Chỉ in lỗi nếu client vẫn đang chạy
                     e.printStackTrace();
+                }
+            }finally {
+                // Đảm bảo mic được đóng khi luồng kết thúc
+                if (mic != null) {
+                    mic.stop();
+                    mic.close();
                 }
             }
         }, "Mic-Sender-Thread").start();
