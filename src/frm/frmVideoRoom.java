@@ -467,7 +467,10 @@ public class frmVideoRoom extends javax.swing.JFrame {
         if (audioClient != null) {
             audioClient.toggleMic();
         }
-        
+        if(audioClient.isMicEnabled()){
+            btnMic.setText("Bật mic");
+        }else
+            btnMic.setText("Tắt mic");
     }//GEN-LAST:event_btnMicActionPerformed
     
     // Variables declaration - do not modify//GEN-BEGIN:variables

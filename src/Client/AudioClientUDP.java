@@ -2,109 +2,117 @@ package Client;
 
 import javax.sound.sampled.*;
 import java.net.*;
-import java.nio.channels.ClosedChannelException;
+import java.nio.ByteBuffer;
 
 public class AudioClientUDP {
     private DatagramSocket socket;
     private InetAddress serverAddr;
     private int port = 5001;
-    private boolean running = true;
-    private boolean micEnabled = true;
+    private volatile boolean running = true;
+    private volatile boolean micEnabled = true;
+    private int sendSequence = 0;
+    private int lastReceivedSeq = -1;
 
-    private TargetDataLine mic;
-    private SourceDataLine speakers;
-    private AudioFormat format;
+    private final int PACKET_SIZE = 1024; // gói nhỏ
 
     public AudioClientUDP(String serverIP) throws Exception {
         socket = new DatagramSocket();
+        socket.setReceiveBufferSize(65536);
+        socket.setSendBufferSize(65536);
         serverAddr = InetAddress.getByName(serverIP);
-        format = getAudioFormat();
     }
 
-    // 🔊 Bắt đầu gửi âm thanh
     public void startSending() {
         new Thread(() -> {
+            TargetDataLine mic = null;
             try {
+                AudioFormat format = getAudioFormat();
                 DataLine.Info info = new DataLine.Info(TargetDataLine.class, format);
                 mic = (TargetDataLine) AudioSystem.getLine(info);
                 mic.open(format);
                 mic.start();
 
-                byte[] buffer = new byte[4096];
-                System.out.println("🎤 Bắt đầu gửi âm thanh...");
+                byte[] audioBuffer = new byte[PACKET_SIZE - 4]; // 4 bytes sequence
+                ByteBuffer sendBuf = ByteBuffer.allocate(PACKET_SIZE);
 
                 while (running) {
                     if (micEnabled) {
-                        int bytesRead = mic.read(buffer, 0, buffer.length);
+                        int bytesRead = mic.read(audioBuffer, 0, audioBuffer.length);
                         if (bytesRead > 0) {
-                            DatagramPacket pkt = new DatagramPacket(buffer, bytesRead, serverAddr, port);
+                            sendBuf.clear();
+                            sendBuf.putInt(sendSequence++);   // 4 byte seq
+                            sendBuf.put(audioBuffer, 0, bytesRead);
+                            DatagramPacket pkt = new DatagramPacket(sendBuf.array(), bytesRead + 4, serverAddr, port);
                             socket.send(pkt);
                         }
                     } else {
-                        // Nếu mic tắt, nghỉ 100ms tránh CPU cao
-                        Thread.sleep(100);
+                        Thread.sleep(50);
                     }
                 }
-
-                mic.stop();
-                mic.close();
-            } catch (SocketException | ClosedChannelException e) {
             } catch (Exception e) {
                 e.printStackTrace();
+            } finally {
+                if (mic != null) mic.close();
             }
-        }, "Mic-Sender-Thread").start();
+        }).start();
     }
 
-    // 🔈 Nhận và phát âm thanh
     public void startReceiving() {
         new Thread(() -> {
+            SourceDataLine speakers = null;
             try {
+                AudioFormat format = getAudioFormat();
                 DataLine.Info info = new DataLine.Info(SourceDataLine.class, format);
                 speakers = (SourceDataLine) AudioSystem.getLine(info);
                 speakers.open(format);
                 speakers.start();
 
-                byte[] buffer = new byte[4096];
-                System.out.println("🔊 Đang nhận và phát âm thanh...");
+                byte[] recvBuffer = new byte[PACKET_SIZE];
 
                 while (running) {
-                    DatagramPacket pkt = new DatagramPacket(buffer, buffer.length);
-                    socket.receive(pkt);
-                    speakers.write(pkt.getData(), 0, pkt.getLength());
-                }
+                    try {
+                        DatagramPacket pkt = new DatagramPacket(recvBuffer, recvBuffer.length);
+                        socket.receive(pkt);
 
-                speakers.drain();
-                speakers.close();
-            } catch (SocketException | ClosedChannelException e) {
-                // Socket đã đóng -> thoát bình thường
-//                break;
+                        ByteBuffer bb = ByteBuffer.wrap(pkt.getData(), 0, pkt.getLength());
+                        int seq = bb.getInt();
+                        byte[] audio = new byte[pkt.getLength() - 4];
+                        bb.get(audio);
+
+                        // Nếu sequence <= lastReceivedSeq → bỏ gói cũ
+                        if (seq <= lastReceivedSeq) continue;
+                        lastReceivedSeq = seq;
+
+                        speakers.write(audio, 0, audio.length);
+                    } catch (SocketException se) {
+                        if (!running) break;
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
             } catch (Exception e) {
                 e.printStackTrace();
+            } finally {
+                if (speakers != null) speakers.close();
             }
-        }, "Speaker-Receiver-Thread").start();
+        }).start();
     }
 
-    // 📴 Dừng toàn bộ
     public void stop() {
         running = false;
         socket.close();
-        if (mic != null && mic.isOpen()) mic.close();
-        if (speakers != null && speakers.isOpen()) speakers.close();
     }
 
-    // 🎤 Bật/Tắt micro
     public void toggleMic() {
         micEnabled = !micEnabled;
-        System.out.println(micEnabled ? "🎙️ Micro bật" : "🔇 Micro tắt");
+        System.out.println(micEnabled ? "🎤 Micro bật" : "🔇 Micro tắt");
+    }
+
+    public boolean isMicEnabled() {
+        return micEnabled;
     }
 
     private AudioFormat getAudioFormat() {
-        // Format an toàn, tương thích cao
-        float sampleRate = 16000.0F;
-        int sampleSizeInBits = 16;
-        int channels = 1;
-        boolean signed = true;
-        boolean bigEndian = false;
-        return new AudioFormat(sampleRate, sampleSizeInBits, channels, signed, bigEndian);
+        return new AudioFormat(16000.0F, 16, 1, true, false);
     }
 }
