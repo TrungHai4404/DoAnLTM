@@ -3,6 +3,7 @@ package server;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
+import java.util.Arrays;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class AudioServerUDP {
@@ -10,7 +11,7 @@ public class AudioServerUDP {
     private final int port = 5001;
     // Thời gian timeout cho client (15 giây không hoạt động sẽ bị xóa)
     private final long CLIENT_TIMEOUT_MS = 15000; 
-
+    private static final byte[] HEARTBEAT_DATA = "HBEAT".getBytes();
     private DatagramSocket socket;
     
     // 💡 TỐI ƯU 1: Dùng ConcurrentHashMap để lưu client và thời gian hoạt động cuối
@@ -29,7 +30,7 @@ public class AudioServerUDP {
     }
 
     private void listenForPackets() {
-        byte[] buffer = new byte[4096]; // Buffer cho dữ liệu âm thanh
+        byte[] buffer = new byte[4096];
 
         while (true) {
             try {
@@ -41,18 +42,23 @@ public class AudioServerUDP {
                     receivedPacket.getPort()
                 );
 
-                // Cập nhật thời gian hoạt động hoặc thêm client mới
+                // Luôn cập nhật thời gian hoạt động khi nhận được bất kỳ packet nào
                 if (!clients.containsKey(clientAddr)) {
                     System.out.println("✅ New audio client connected: " + clientAddr);
                 }
                 clients.put(clientAddr, System.currentTimeMillis());
 
-                // Phát lại packet cho tất cả các client khác
-                broadcastPacket(receivedPacket, clientAddr);
+                // 💡 BƯỚC 2: Kiểm tra xem packet có phải là heartbeat không
+                byte[] receivedData = Arrays.copyOf(receivedPacket.getData(), receivedPacket.getLength());
+                boolean isHeartbeat = Arrays.equals(receivedData, HEARTBEAT_DATA);
+
+                // 💡 BƯỚC 3: Chỉ phát lại nếu đó là dữ liệu âm thanh, không phải heartbeat
+                if (!isHeartbeat) {
+                    broadcastPacket(receivedPacket, clientAddr);
+                }
 
             } catch (Exception e) {
                 System.err.println("Error receiving packet: " + e.getMessage());
-                // e.printStackTrace(); // Bật lên để debug nếu cần
             }
         }
     }

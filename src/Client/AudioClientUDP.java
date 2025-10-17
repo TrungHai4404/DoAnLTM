@@ -9,7 +9,7 @@ public class AudioClientUDP {
     private int port = 5001;
     private boolean running = true;
     private boolean micEnabled = true;
-
+    private static final byte[] HEARTBEAT_DATA = "HBEAT".getBytes();
     private TargetDataLine mic;
     private SourceDataLine speakers;
     private AudioFormat format;
@@ -24,11 +24,7 @@ public class AudioClientUDP {
     public void startSending() {
         new Thread(() -> {
             try {
-                DataLine.Info info = new DataLine.Info(TargetDataLine.class, format);
-                mic = (TargetDataLine) AudioSystem.getLine(info);
-                mic.open(format);
-                mic.start();
-
+                // ... khởi tạo mic ...
                 byte[] buffer = new byte[4096];
                 System.out.println("🎤 Bắt đầu gửi âm thanh...");
 
@@ -40,15 +36,17 @@ public class AudioClientUDP {
                             socket.send(pkt);
                         }
                     } else {
-                        // Nếu mic tắt, nghỉ 100ms tránh CPU cao
-                        Thread.sleep(100);
+                        // 💡 BƯỚC 2: Khi mic tắt, gửi heartbeat 2 giây một lần
+                        DatagramPacket heartbeatPkt = new DatagramPacket(HEARTBEAT_DATA, HEARTBEAT_DATA.length, serverAddr, port);
+                        socket.send(heartbeatPkt);
+                        Thread.sleep(2000); // Gửi heartbeat và nghỉ 2 giây
                     }
                 }
-
-                mic.stop();
-                mic.close();
+                // ... dọn dẹp mic ...
             } catch (Exception e) {
-                e.printStackTrace();
+                if (running) { // Chỉ in lỗi nếu client vẫn đang chạy
+                    e.printStackTrace();
+                }
             }
         }, "Mic-Sender-Thread").start();
     }
