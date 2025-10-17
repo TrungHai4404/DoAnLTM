@@ -41,8 +41,9 @@ public class ChatServerTCP {
 
                     // Nếu client gửi EXIT:<userID>|<roomCode>
                     if (msg.startsWith("EXIT:")) {
-                        handleExit(msg);
-                        break;
+                        handleExit(msg); // handleExit đã broadcast rồi
+                        clients.remove(this); // remove client hiện tại
+                        break; // kết thúc luồng
                     } else {
                         broadcast(msg);
                     }
@@ -55,7 +56,6 @@ public class ChatServerTCP {
             }
         }
 
-        /** Xử lý khi user rời phòng **/
         private void handleExit(String msg) {
             try {
                 // Cú pháp: EXIT:<userID>|<roomCode>
@@ -65,8 +65,12 @@ public class ChatServerTCP {
                 String userID = parts[0].trim();
                 String roomCode = parts[1].trim();
 
-                // Gửi thông báo cho các client khác
-                broadcast("EXIT:" + userID);
+                // 🔹 Broadcast cho tất cả client khác
+                for (ClientHandler c : clients) {
+                    if (c != this) {
+                        c.sendMessage("EXIT:" + userID);
+                    }
+                }
 
                 // Cập nhật thời gian rời phòng trong DB
                 updateLeaveTime(userID, roomCode);
@@ -76,6 +80,7 @@ public class ChatServerTCP {
                 e.printStackTrace();
             }
         }
+
 
         /** Cập nhật LeaveTime vào database **/
         private void updateLeaveTime(String userID, String roomCode) {
@@ -110,8 +115,12 @@ public class ChatServerTCP {
                 }
             }
         }
-    }
 
+        private void sendMessage(String string) {
+           out.println(string);
+        }
+    }
+    
     public static void main(String[] args) throws Exception {
         new ChatServerTCP();
     }

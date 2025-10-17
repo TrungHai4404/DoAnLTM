@@ -359,7 +359,6 @@ public class frmVideoRoom extends javax.swing.JFrame {
     }// </editor-fold>//GEN-END:initComponents
 
     private void btnEndActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnEndActionPerformed
-        
          try {
             chatClient.sendMessage("EXIT:" + localClientID);
             removeVideoPanel(localClientID);
@@ -370,6 +369,8 @@ public class frmVideoRoom extends javax.swing.JFrame {
             roomDao.markLeave(roomDao.getRoomIdByCode(roomCode), currentUser.getId().toString());
             // Xóa người đó khỏi danh sách hiển thị
             removeUserFromList(currentUser.getFullName());
+            //Xóa khung ảnh khỏi videoPanelGrid
+                
             // Đóng phòng hoặc quay lại menu chính
             new frmMainMenu(currentUser).setVisible(true);
             this.dispose();
@@ -460,7 +461,6 @@ public class frmVideoRoom extends javax.swing.JFrame {
     private void btnMicActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnMicActionPerformed
         if (audioClient != null) {
             audioClient.toggleMic();
-            btnMic.setText(audioClient.isMicEnabled() ? "Tắt Mic" : "Bật Mic");
         }
     }//GEN-LAST:event_btnMicActionPerformed
 

@@ -10,18 +10,22 @@ public class AudioClientUDP {
     private boolean running = true;
     private boolean micEnabled = true;
 
+    private TargetDataLine mic;
+    private SourceDataLine speakers;
+    private AudioFormat format;
+
     public AudioClientUDP(String serverIP) throws Exception {
         socket = new DatagramSocket();
         serverAddr = InetAddress.getByName(serverIP);
+        format = getAudioFormat();
     }
 
-    // Gửi âm thanh (micro)
+    // 🔊 Bắt đầu gửi âm thanh
     public void startSending() {
         new Thread(() -> {
             try {
-                AudioFormat format = getAudioFormat();
                 DataLine.Info info = new DataLine.Info(TargetDataLine.class, format);
-                TargetDataLine mic = (TargetDataLine) AudioSystem.getLine(info);
+                mic = (TargetDataLine) AudioSystem.getLine(info);
                 mic.open(format);
                 mic.start();
 
@@ -31,24 +35,30 @@ public class AudioClientUDP {
                 while (running) {
                     if (micEnabled) {
                         int bytesRead = mic.read(buffer, 0, buffer.length);
-                        DatagramPacket pkt = new DatagramPacket(buffer, bytesRead, serverAddr, port);
-                        socket.send(pkt);
+                        if (bytesRead > 0) {
+                            DatagramPacket pkt = new DatagramPacket(buffer, bytesRead, serverAddr, port);
+                            socket.send(pkt);
+                        }
+                    } else {
+                        // Nếu mic tắt, nghỉ 100ms tránh CPU cao
+                        Thread.sleep(100);
                     }
                 }
+
+                mic.stop();
                 mic.close();
             } catch (Exception e) {
                 e.printStackTrace();
             }
-        }).start();
+        }, "Mic-Sender-Thread").start();
     }
 
-    // Nhận âm thanh và phát ra loa
+    // 🔈 Nhận và phát âm thanh
     public void startReceiving() {
         new Thread(() -> {
             try {
-                AudioFormat format = getAudioFormat();
                 DataLine.Info info = new DataLine.Info(SourceDataLine.class, format);
-                SourceDataLine speakers = (SourceDataLine) AudioSystem.getLine(info);
+                speakers = (SourceDataLine) AudioSystem.getLine(info);
                 speakers.open(format);
                 speakers.start();
 
@@ -60,28 +70,31 @@ public class AudioClientUDP {
                     socket.receive(pkt);
                     speakers.write(pkt.getData(), 0, pkt.getLength());
                 }
+
+                speakers.drain();
                 speakers.close();
             } catch (Exception e) {
                 e.printStackTrace();
             }
-        }).start();
+        }, "Speaker-Receiver-Thread").start();
     }
 
+    // 📴 Dừng toàn bộ
     public void stop() {
         running = false;
         socket.close();
+        if (mic != null && mic.isOpen()) mic.close();
+        if (speakers != null && speakers.isOpen()) speakers.close();
     }
 
+    // 🎤 Bật/Tắt micro
     public void toggleMic() {
         micEnabled = !micEnabled;
-        System.out.println(micEnabled ? "🎤 Micro bật" : "🔇 Micro tắt");
-    }
-
-    public boolean isMicEnabled() {
-        return micEnabled;
+        System.out.println(micEnabled ? "🎙️ Micro bật" : "🔇 Micro tắt");
     }
 
     private AudioFormat getAudioFormat() {
+        // Format an toàn, tương thích cao
         float sampleRate = 16000.0F;
         int sampleSizeInBits = 16;
         int channels = 1;

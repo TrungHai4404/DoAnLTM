@@ -26,10 +26,10 @@ public class AudioServerUDP {
 
             // Phát lại cho tất cả client khác
             for (InetSocketAddress c : clients) {
-                if (!c.equals(clientAddr)) {
+//                if (!c.equals(clientAddr)) {
                     DatagramPacket sendPkt = new DatagramPacket(pkt.getData(), pkt.getLength(), c.getAddress(), c.getPort());
                     socket.send(sendPkt);
-                }
+//                }
             }
         }
     }
