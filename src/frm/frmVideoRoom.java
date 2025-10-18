@@ -94,7 +94,6 @@ public class frmVideoRoom extends javax.swing.JFrame {
             videoEnabled = false;
             noCamImage = createNoCamImage(160, 120, "CAMERA OFF");
             updateVideoPanel(localClientID, noCamImage);
-            chatClient.sendMessage( videoEnabled ? ("CAM_ON:" + localClientID) : ("CAM_OFF:" + localClientID) );
         }
         // Kiểm tra Mic
         boolean micAvailable = isMicAvailable();
@@ -118,6 +117,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
             chatClient = new ChatClientTCP("192.168.1.2");
             //Them thanh vien tham gia
             chatClient.sendMessage("JOIN:" + localClientID);
+            chatClient.sendMessage( videoEnabled ? ("CAM_ON:" + localClientID) : ("CAM_OFF:" + localClientID) );
 
             // Bắt đầu luồng audio
             audioClient.start();
