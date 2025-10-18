@@ -80,9 +80,10 @@ public class frmVideoRoom extends javax.swing.JFrame {
         txtRoomID.setText(roomCode);
         
         initNetworking();
+        
         loadMembers();
         // Cập nhật danh sách thành viên mỗi 5 giây
-        new javax.swing.Timer(5000, e -> loadMembers()).start();
+//        new javax.swing.Timer(5000, e -> loadMembers()).start();    
     }
 
     private void initNetworking() {
@@ -109,6 +110,11 @@ public class frmVideoRoom extends javax.swing.JFrame {
         //Neu khong co mic va cam thi cap nhat cac nut
         if (!videoEnabled) btnVideo.setText("None Camera");
         if (!micEnabled) btnMic.setText("None Micro");
+        if (!webcamAvailable) {
+            videoEnabled = false;
+            noCamImage = createNoCamImage(160, 120, "Camera Off");
+            updateVideoPanel(localClientID, noCamImage);
+        }
         // Cấu hình layout
         videoPanelGrid.setLayout(new FlowLayout(FlowLayout.LEFT, 5, 5));
          // Tạo ảnh mặc định "No Camera"
@@ -178,6 +184,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
                                     String[] parts = msg.substring(5).split("\\|");
                                     if (parts.length >= 1) {
                                         String exitedUserID = parts[0].trim();
+                                        System.out.println("ID cua label can xoa la: "+ exitedUserID);
                                         SwingUtilities.invokeLater(() -> {
                                             removeVideoPanel(exitedUserID);
                                             removeUserFromList(exitedUserID);
@@ -276,14 +283,17 @@ public class frmVideoRoom extends javax.swing.JFrame {
         }
     }
     // === Khi người dùng rời phòng ===
-    private void removeVideoPanel(String clientID) {
-        JLabel label = videoPanels.remove(clientID);
+    private void removeVideoPanel(String username) {
+        JLabel label = videoPanels.remove(username);
         if (label != null) {
-            videoPanelGrid.remove(label);
-            videoPanelGrid.revalidate();
-            videoPanelGrid.repaint();
-            System.out.println("Remove label " + clientID);
-        }
+             SwingUtilities.invokeLater(() -> {
+                videoPanelGrid.remove(label);
+                videoPanelGrid.revalidate();
+                videoPanelGrid.repaint();
+                System.out.println("Remove label: " + username);
+            });
+        }else
+            System.out.println("Khong tim thay label: "+ username);
     }
     // === Hàm tạo ảnh "Camera Off" ===
     private BufferedImage createNoCamImage(int width, int height, String text) {
@@ -403,6 +413,8 @@ public class frmVideoRoom extends javax.swing.JFrame {
                 if (audioClient != null) audioClient.stop();
                 if (webcam != null) webcam.release();
                 // Xóa video panel local
+                updateVideoPanel(localClientID, null);
+                Thread.sleep(100);
                 SwingUtilities.invokeLater(() -> removeVideoPanel(localClientID));
                 // Quay lại menu chính
                 new frmMainMenu(currentUser).setVisible(true);
@@ -434,6 +446,8 @@ public class frmVideoRoom extends javax.swing.JFrame {
             }
             if (audioClient != null) audioClient.stop();
             if (webcam != null) webcam.release();
+            updateVideoPanel(localClientID, null);
+            Thread.sleep(100);
             SwingUtilities.invokeLater(() -> {
                 removeVideoPanel(localClientID);
                 removeUserFromList(localClientID);

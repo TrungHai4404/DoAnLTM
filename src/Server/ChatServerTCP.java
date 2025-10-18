@@ -42,7 +42,8 @@ public class ChatServerTCP {
 
                     // Nếu client gửi EXIT:<userID>|<roomCode>
                     if (msg.startsWith("EXIT:")) {
-                        handleExit(msg); // đã broadcast trong handleExit
+                        handleExit(msg); 
+                        broadcast(msg);// đã broadcast trong handleExit
                         clients.remove(this); // remove client hiện tại
                         break; // kết thúc thread
                     } else {
