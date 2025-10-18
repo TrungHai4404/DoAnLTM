@@ -181,12 +181,28 @@ public class frmVideoRoom extends javax.swing.JFrame {
                         String msg = chatClient.receiveMessage();
                         if (msg == null) continue;
                         if (msg.startsWith("JOINED:")) {
-                            String u = msg.substring(7).trim();
-                            SwingUtilities.invokeLater(() -> {
-                                if (!videoPanels.containsKey(u)) {
-                                    updateVideoPanel(u, null); // tạo label (sẽ là "Camera Off" nếu null) — hoặc set text "Đang kết nối..."
+                            if(videoEnabled){
+                                try {
+                                    byte[] frameData = webcam.captureFrame();
+                                    if (frameData != null) {
+                                        BufferedImage img = ImageIO.read(new ByteArrayInputStream(frameData));
+                                        BufferedImage resized = resizeFrame(img, 160, 120);
+                                        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                                        ImageIO.write(resized, "jpg", baos);
+                                        videoClient.sendFrame(baos.toByteArray(), localClientID);
+                                    }
+                                } catch (Exception ex) {
+                                    ex.printStackTrace();
                                 }
-                            });
+                            }else{
+                                String u = msg.substring(7).trim();
+                                SwingUtilities.invokeLater(() -> {
+                                    if (!videoPanels.containsKey(u)) {
+                                        updateVideoPanel(u, null); // tạo label (sẽ là "Camera Off" nếu null) — hoặc set text "Đang kết nối..."
+                                    }
+                                });
+                            }
+                            
                         }
                         if (msg.startsWith("EXIT:")) {
                             String[] parts = msg.substring(5).split("\\|");
