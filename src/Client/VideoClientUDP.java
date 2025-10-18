@@ -8,26 +8,46 @@ public class VideoClientUDP {
     private int port = 5000;
 
     public VideoClientUDP(String serverIP) throws Exception {
-        socket = new DatagramSocket();
         serverAddr = InetAddress.getByName(serverIP);
+        socket = new DatagramSocket();
+        socket.setSoTimeout(0); // nhận không timeout
+        socket.setReceiveBufferSize(1024 * 1024); // 1MB buffer nhận
+        socket.setSendBufferSize(1024 * 1024);    // 1MB buffer gửi
+        System.out.println("UDP Video client started on port: " + socket.getLocalPort());
     }
 
-    /** Gửi frame kèm clientID */
-    public void sendFrame(byte[] frameData, String clientID) throws Exception {
-        byte[] clientBytes = clientID.getBytes();
-        byte[] data = new byte[36 + frameData.length];
+    /** Gửi frame kèm username (clientID) */
+    public void sendFrame(byte[] frameData, String clientID) {
+        try {
+            byte[] idBytes = clientID.getBytes();
+            byte[] data = new byte[36 + frameData.length];
+            System.arraycopy(idBytes, 0, data, 0, Math.min(idBytes.length, 36));
+            System.arraycopy(frameData, 0, data, 36, frameData.length);
 
-        System.arraycopy(clientBytes, 0, data, 0, Math.min(clientBytes.length, 36));
-        System.arraycopy(frameData, 0, data, 36, frameData.length);
-
-        DatagramPacket pkt = new DatagramPacket(data, data.length, serverAddr, port);
-        socket.send(pkt);
+            DatagramPacket packet = new DatagramPacket(data, data.length, serverAddr, port);
+            socket.send(packet);
+        } catch (Exception e) {
+            System.err.println("Gửi frame thất bại: " + e.getMessage());
+        }
     }
 
     /** Nhận frame từ server */
-    public DatagramPacket receiveFrame(byte[] buf) throws Exception {
-        DatagramPacket pkt = new DatagramPacket(buf, buf.length);
-        socket.receive(pkt);
-        return pkt;
+    public DatagramPacket receiveFrame(byte[] buffer) {
+        try {
+            DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
+            socket.receive(packet);
+            return packet;
+        } catch (SocketTimeoutException ignored) {
+        } catch (Exception e) {
+            System.err.println("Lỗi nhận frame: " + e.getMessage());
+        }
+        return null;
+    }
+
+    public void close() {
+        if (socket != null && !socket.isClosed()) {
+            socket.close();
+            System.out.println("UDP video socket closed.");
+        }
     }
 }

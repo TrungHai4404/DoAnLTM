@@ -1,32 +1,39 @@
 package Client;
 
-import org.opencv.core.Mat;
+import org.opencv.core.*;
 import org.opencv.videoio.VideoCapture;
 import org.opencv.imgproc.Imgproc;
-import java.awt.image.BufferedImage;
+import org.opencv.imgcodecs.Imgcodecs;
+
 import java.io.ByteArrayOutputStream;
+import java.awt.image.BufferedImage;
 import javax.imageio.ImageIO;
+import org.opencv.videoio.Videoio;
 
 public class WebcamCapture {
     private VideoCapture camera;
-    private boolean available;
+    private boolean available = false;
 
     public WebcamCapture() {
         try {
-            System.loadLibrary(org.opencv.core.Core.NATIVE_LIBRARY_NAME);
+            System.loadLibrary(Core.NATIVE_LIBRARY_NAME);
             camera = new VideoCapture(0);
 
             if (!camera.isOpened()) {
-                System.err.println("🚫 Không tìm thấy webcam hoặc không thể mở!");
+                System.err.println("Webcame not found!");
                 available = false;
-                camera.release();
-            } else {
-                available = true;
-                System.out.println("✅ Webcam đã khởi tạo thành công!");
+                return;
             }
+
+            // Cố gắng thiết lập độ phân giải cao hơn (mà vẫn nhẹ)
+            camera.set(Videoio.CAP_PROP_FRAME_WIDTH, 640);
+            camera.set(Videoio.CAP_PROP_FRAME_HEIGHT, 480);
+            camera.set(Videoio.CAP_PROP_FPS, 30);
+
+            available = true;
+            System.out.println("Webcam init succesful (640x480 @30fps)");
         } catch (Exception e) {
-            available = false;
-            System.err.println("⚠️ Webcam không khả dụng: " + e.getMessage());
+            System.err.println("Webcam error: " + e.getMessage());
         }
     }
 
@@ -36,40 +43,32 @@ public class WebcamCapture {
 
     public byte[] captureFrame() {
         if (!available) return null;
+
         try {
             Mat frame = new Mat();
-            if (camera.read(frame)) {
-                Mat frameRGB = new Mat();
-                Imgproc.cvtColor(frame, frameRGB, Imgproc.COLOR_BGR2RGB);
-                BufferedImage img = matToBufferedImage(frameRGB);
-
-                ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                ImageIO.write(img, "jpg", baos);
-                return baos.toByteArray();
+            if (!camera.read(frame) || frame.empty()) {
+                return null;
             }
+
+            // Làm mượt & resize để ổn định kích thước
+            Imgproc.GaussianBlur(frame, frame, new Size(3, 3), 0);
+            Imgproc.resize(frame, frame, new Size(640, 480));
+
+            // Nén JPEG với chất lượng cao (80%)
+            MatOfByte buf = new MatOfByte();
+            Imgcodecs.imencode(".jpg", frame, buf, new MatOfInt(Imgcodecs.IMWRITE_JPEG_QUALITY, 80));
+            return buf.toArray();
+
         } catch (Exception e) {
-            System.err.println("⚠️ Lỗi khi đọc khung hình: " + e.getMessage());
+            System.err.println("Lỗi đọc khung hình: " + e.getMessage());
         }
         return null;
-    }
-
-    private BufferedImage matToBufferedImage(Mat mat) {
-        int type = BufferedImage.TYPE_3BYTE_BGR;
-        if (mat.channels() == 1)
-            type = BufferedImage.TYPE_BYTE_GRAY;
-
-        int bufferSize = mat.channels() * mat.cols() * mat.rows();
-        byte[] b = new byte[bufferSize];
-        mat.get(0, 0, b);
-        BufferedImage image = new BufferedImage(mat.cols(), mat.rows(), type);
-        image.getRaster().setDataElements(0, 0, mat.cols(), mat.rows(), b);
-        return image;
     }
 
     public void release() {
         if (camera != null && camera.isOpened()) {
             camera.release();
-            System.out.println("🔌 Webcam released.");
+            System.out.println("Webcam released.");
         }
     }
 }

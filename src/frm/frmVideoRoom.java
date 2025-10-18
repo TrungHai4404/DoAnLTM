@@ -56,7 +56,9 @@ public class frmVideoRoom extends javax.swing.JFrame {
     private VideoClientUDP videoClient;
     private ChatClientTCP chatClient;
     private AudioClientUDP audioClient;  
+    // Khởi tạo webcame
     WebcamCapture webcam = new WebcamCapture();
+    //Nút bật tắt mic
     private boolean videoEnabled = true;
     private boolean micEnabled = true;
             
@@ -105,9 +107,12 @@ public class frmVideoRoom extends javax.swing.JFrame {
         //Neu khong co mic va cam thi cap nhat cac nut
         if (!videoEnabled){
             btnVideo.setText("None Camera");
-            
+            btnVideo.setEnabled(false);
         }
-        if (!micEnabled) btnMic.setText("None Micro");
+        if (!micEnabled){
+            btnMic.setText("None Micro");
+            btnMic.setEnabled(false);
+        }
         // Cấu hình layout
         videoPanelGrid.setLayout(new FlowLayout(FlowLayout.LEFT, 5, 5));
          // Tạo ảnh mặc định "No Camera"
@@ -129,19 +134,16 @@ public class frmVideoRoom extends javax.swing.JFrame {
                         byte[] buf = new byte[65536];
                         while (true) {
                             DatagramPacket pkt = videoClient.receiveFrame(buf);
-                            byte[] data = Arrays.copyOf(pkt.getData(), pkt.getLength());
+                            byte[] data = java.util.Arrays.copyOf(pkt.getData(), pkt.getLength());
                             if (data.length <= 36) continue;
-
-                            String sender = new String(Arrays.copyOfRange(data, 0, 36)).trim();
-                            byte[] frameBytes = Arrays.copyOfRange(data, 36, data.length);
+                            String clientID = new String(java.util.Arrays.copyOfRange(data, 0, 36)).trim();
+                            byte[] frameBytes = java.util.Arrays.copyOfRange(data, 36, data.length);
                             BufferedImage img = ImageIO.read(new ByteArrayInputStream(frameBytes));
                             if (img != null) {
-                                SwingUtilities.invokeLater(() -> updateVideoPanel(sender, img));
+                                SwingUtilities.invokeLater(() -> updateVideoPanel(clientID, img));
                             }
                         }
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
+                    } catch (Exception e) { e.printStackTrace(); }
                 }).start();
             }
             // Thread gửi video
@@ -161,7 +163,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
                             // Cập nhật hình preview local
                             SwingUtilities.invokeLater(() -> updateVideoPanel(localClientID, resized));
                         }
-                        Thread.sleep(100);
+                        Thread.sleep(33);
                     }
                 } catch (Exception e) { e.printStackTrace(); }
             }).start();
