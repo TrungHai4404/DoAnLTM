@@ -4,7 +4,6 @@ import Client.AudioClientUDP;
 import Client.ChatClientTCP;
 import Client.VideoClientUDP;
 import Client.WebcamCapture;
-import Network.NetworkUtils;
 import dao.ChatMessageDao;
 import dao.UserDao;
 import dao.VideoRoomDao;
@@ -14,16 +13,12 @@ import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
-import java.awt.GridLayout;
 import java.awt.Image;
-import static java.awt.SystemColor.text;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.net.DatagramPacket;
-import java.util.Arrays;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.imageio.ImageIO;
@@ -179,6 +174,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
                                     if (parts.length >= 1) {
                                         String exitedUserID = parts[0].trim();
                                         System.out.println("ID cua label can xoa la: "+ exitedUserID);
+                                        updateVideoPanel(exitedUserID, noCamImage);
                                         SwingUtilities.invokeLater(() -> {
                                             removeVideoPanel(exitedUserID);
                                             removeUserFromList(exitedUserID);
@@ -190,7 +186,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
                                 }
                             } else if (msg.startsWith("CAM_OFF:")) {
                                 String clientID = msg.substring(8).trim();
-                                SwingUtilities.invokeLater(() -> updateVideoPanel(clientID, null));
+                                SwingUtilities.invokeLater(() -> updateVideoPanel(clientID, noCamImage));
                                 System.out.println(" Nguoi dung " + clientID + " da tat camera");
 
                             } else if (msg.startsWith("CAM_ON:")) {
