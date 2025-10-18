@@ -5,12 +5,15 @@ import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
 import model.User;
 import org.opencv.calib3d.UsacParams;
+import Client.ChatClientTCP;
+import dao.UserDao;
 import dao.VideoRoomDao;
+import javax.swing.JPasswordField;
 public class frmMainMenu extends javax.swing.JFrame {
     private static final java.util.logging.Logger logger = java.util.logging.Logger.getLogger(frmMainMenu.class.getName());
     private final User currentUser; // giữ thông tin người dùng đang đăng nhập
     VideoRoomDao roomDao = new VideoRoomDao();
-     
+    
     public frmMainMenu(User user) {
         initComponents();
         this.currentUser = user;
@@ -42,13 +45,12 @@ public class frmMainMenu extends javax.swing.JFrame {
         txtUsername = new javax.swing.JTextField();
         txtFullname = new javax.swing.JTextField();
         txtEmail = new javax.swing.JTextField();
-        jButton1 = new javax.swing.JButton();
+        btnDangXuat = new javax.swing.JButton();
         btnDoiMK = new javax.swing.JButton();
         jLabel1 = new javax.swing.JLabel();
         jMenuBar1 = new javax.swing.JMenuBar();
-        jMenu1 = new javax.swing.JMenu();
-        jMenuItem1 = new javax.swing.JMenuItem();
-        jMenu2 = new javax.swing.JMenu();
+        btnItemThoat = new javax.swing.JMenu();
+        mItemThoat = new javax.swing.JMenuItem();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
 
@@ -82,9 +84,19 @@ public class frmMainMenu extends javax.swing.JFrame {
 
         txtEmail.setEditable(false);
 
-        jButton1.setText("Đăng xuất");
+        btnDangXuat.setText("Đăng xuất");
+        btnDangXuat.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                btnDangXuatActionPerformed(evt);
+            }
+        });
 
         btnDoiMK.setText("Đổi mật khẩu");
+        btnDoiMK.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                btnDoiMKActionPerformed(evt);
+            }
+        });
 
         javax.swing.GroupLayout jPanel1Layout = new javax.swing.GroupLayout(jPanel1);
         jPanel1.setLayout(jPanel1Layout);
@@ -103,47 +115,52 @@ public class frmMainMenu extends javax.swing.JFrame {
                     .addComponent(txtEmail))
                 .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                     .addGroup(jPanel1Layout.createSequentialGroup()
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                        .addComponent(jButton1, javax.swing.GroupLayout.PREFERRED_SIZE, 101, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, 8, Short.MAX_VALUE)
+                        .addComponent(btnDoiMK)
                         .addGap(18, 18, 18))
                     .addGroup(jPanel1Layout.createSequentialGroup()
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
-                        .addComponent(btnDoiMK)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addComponent(btnDangXuat, javax.swing.GroupLayout.PREFERRED_SIZE, 101, javax.swing.GroupLayout.PREFERRED_SIZE)
                         .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))))
         );
         jPanel1Layout.setVerticalGroup(
             jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(jPanel1Layout.createSequentialGroup()
                 .addContainerGap()
-                .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
-                    .addComponent(jLabel3)
-                    .addComponent(txtUsername, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
-                .addGap(6, 6, 6)
-                .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
-                    .addComponent(jLabel4)
-                    .addComponent(txtFullname, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                    .addComponent(btnDoiMK))
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
-                    .addComponent(jLabel5)
-                    .addComponent(txtEmail, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                    .addComponent(jButton1))
-                .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+                .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addGroup(jPanel1Layout.createSequentialGroup()
+                        .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                            .addComponent(jLabel3)
+                            .addComponent(txtUsername, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
+                        .addGap(6, 6, 6)
+                        .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                            .addComponent(jLabel4)
+                            .addComponent(txtFullname, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)))
+                    .addComponent(btnDoiMK, javax.swing.GroupLayout.PREFERRED_SIZE, 38, javax.swing.GroupLayout.PREFERRED_SIZE))
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
+                .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                        .addComponent(txtEmail, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addComponent(btnDangXuat))
+                    .addComponent(jLabel5))
+                .addContainerGap(19, Short.MAX_VALUE))
         );
 
         jLabel1.setFont(new java.awt.Font("Segoe UI", 1, 24)); // NOI18N
         jLabel1.setText("Wellcome to VideoChatProMax");
 
-        jMenu1.setText("Hệ thống");
+        btnItemThoat.setText("Hệ thống");
 
-        jMenuItem1.setAccelerator(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_F4, java.awt.event.InputEvent.ALT_DOWN_MASK));
-        jMenuItem1.setText("Thoát");
-        jMenu1.add(jMenuItem1);
+        mItemThoat.setAccelerator(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_F4, java.awt.event.InputEvent.ALT_DOWN_MASK));
+        mItemThoat.setText("Thoát");
+        mItemThoat.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                mItemThoatActionPerformed(evt);
+            }
+        });
+        btnItemThoat.add(mItemThoat);
 
-        jMenuBar1.add(jMenu1);
-
-        jMenu2.setText("Chức năng");
-        jMenuBar1.add(jMenu2);
+        jMenuBar1.add(btnItemThoat);
 
         setJMenuBar(jMenuBar1);
 
@@ -179,7 +196,7 @@ public class frmMainMenu extends javax.swing.JFrame {
                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                     .addComponent(btnTaoCuocGoi, javax.swing.GroupLayout.PREFERRED_SIZE, 67, javax.swing.GroupLayout.PREFERRED_SIZE)
                     .addComponent(btnThamGiaCuocGoi, javax.swing.GroupLayout.PREFERRED_SIZE, 67, javax.swing.GroupLayout.PREFERRED_SIZE))
-                .addContainerGap(21, Short.MAX_VALUE))
+                .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
         );
 
         pack();
@@ -212,24 +229,85 @@ public class frmMainMenu extends javax.swing.JFrame {
         }
     }//GEN-LAST:event_btnTaoCuocGoiActionPerformed
 
-//    public static void main(String args[]) {
-//        SwingUtilities.invokeLater(() -> new frmMainMenu().setVisible(true));
-//    }
+    private void mItemThoatActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_mItemThoatActionPerformed
+        System.exit(0);
+    }//GEN-LAST:event_mItemThoatActionPerformed
+
+    private void btnDangXuatActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnDangXuatActionPerformed
+         int confirm = JOptionPane.showConfirmDialog(this, 
+            "Bạn có chắc chắn muốn đăng xuất không?", 
+            "Đăng xuất", JOptionPane.YES_NO_OPTION);
+
+        if (confirm == JOptionPane.YES_OPTION) {
+            try {
+                new frmLogin().setVisible(true);
+                this.dispose();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }//GEN-LAST:event_btnDangXuatActionPerformed
+
+    private void btnDoiMKActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnDoiMKActionPerformed
+        JPasswordField oldPassField = new JPasswordField();
+        JPasswordField newPassField = new JPasswordField();
+        JPasswordField confirmPassField = new JPasswordField();
+
+        Object[] message = {
+            "Mật khẩu hiện tại:", oldPassField,
+            "Mật khẩu mới:", newPassField,
+            "Xác nhận mật khẩu mới:", confirmPassField
+        };
+
+        int option = JOptionPane.showConfirmDialog(
+            this, message, "Đổi mật khẩu", JOptionPane.OK_CANCEL_OPTION
+        );
+
+        if (option == JOptionPane.OK_OPTION) {
+            String oldPass = new String(oldPassField.getPassword());
+            String newPass = new String(newPassField.getPassword());
+            String confirmPass = new String(confirmPassField.getPassword());
+
+            if (oldPass.isEmpty() || newPass.isEmpty() || confirmPass.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Vui lòng nhập đầy đủ thông tin!", "Lỗi", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            if (!newPass.equals(confirmPass)) {
+                JOptionPane.showMessageDialog(this, "Mật khẩu xác nhận không khớp!", "Lỗi", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            try {
+                UserDao userDao = new UserDao();
+                boolean success = userDao.changePassword(currentUser.getUsername(), oldPass, newPass);
+
+                if (success) {
+                    JOptionPane.showMessageDialog(this, "✅ Đổi mật khẩu thành công!");
+                } else {
+                    JOptionPane.showMessageDialog(this, "❌ Mật khẩu cũ không chính xác!", "Lỗi", JOptionPane.ERROR_MESSAGE);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+                JOptionPane.showMessageDialog(this, "Đã xảy ra lỗi khi đổi mật khẩu!", "Lỗi", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }//GEN-LAST:event_btnDoiMKActionPerformed
+
     
     // Variables declaration - do not modify//GEN-BEGIN:variables
+    private javax.swing.JButton btnDangXuat;
     private javax.swing.JButton btnDoiMK;
+    private javax.swing.JMenu btnItemThoat;
     private javax.swing.JButton btnTaoCuocGoi;
     private javax.swing.JButton btnThamGiaCuocGoi;
-    private javax.swing.JButton jButton1;
     private javax.swing.JLabel jLabel1;
     private javax.swing.JLabel jLabel3;
     private javax.swing.JLabel jLabel4;
     private javax.swing.JLabel jLabel5;
-    private javax.swing.JMenu jMenu1;
-    private javax.swing.JMenu jMenu2;
     private javax.swing.JMenuBar jMenuBar1;
-    private javax.swing.JMenuItem jMenuItem1;
     private javax.swing.JPanel jPanel1;
+    private javax.swing.JMenuItem mItemThoat;
     private javax.swing.JTextField txtEmail;
     private javax.swing.JTextField txtFullname;
     private javax.swing.JTextField txtUsername;
