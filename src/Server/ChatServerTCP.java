@@ -12,6 +12,7 @@ public class ChatServerTCP {
     private int port = 6000;
     private CopyOnWriteArrayList<ClientHandler> clients = new CopyOnWriteArrayList<>();
     private ConcurrentHashMap<String, Boolean> cameraStates = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, ClientHandler> online = new ConcurrentHashMap<>();
 
     public ChatServerTCP() throws Exception {
         ServerSocket serverSocket = new ServerSocket(port);
@@ -35,54 +36,62 @@ public class ChatServerTCP {
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             out = new PrintWriter(socket.getOutputStream(), true);
         }
-         public String getUsername() {  // 🔹 Thêm hàm getter
-                return username;
-            }
+        public String getUsername() {  
+            return username;
+        }
         @Override
         public void run() {
-            try {
+             try {
                 String msg;
                 while ((msg = in.readLine()) != null) {
-                    System.out.println("Nhan tin: " + msg);
+                    if (msg.startsWith("JOIN:")) {
+                        String user = msg.substring(5).trim();
+                        this.username = user;
+                        online.put(user, this);
+                        // mặc định coi là đang "off" cho an toàn (client sẽ báo CAM_ON nếu có cam)
+                        cameraStates.putIfAbsent(user, false);
 
-                    // Nếu client gửi EXIT:<userID>|<roomCode>
-                    if (msg.startsWith("EXIT:")) {
-                        handleExit(msg); 
-                        broadcast(msg);// đã broadcast trong handleExit
-                        clients.remove(this); // remove client hiện tại
-                        break; // kết thúc thread
-                    } else {
-                        broadcast(msg);
+                        // báo cho người khác: có người mới
+                        broadcast("JOINED:" + user);
+
+                        // gửi snapshot trạng thái cho người mới
+                        for (Map.Entry<String, Boolean> e : cameraStates.entrySet()) {
+                            String u = e.getKey();
+                            boolean on = e.getValue();
+                            // gửi cả chính nó (để đồng bộ label tất cả)
+                            sendMessage((on ? "CAM_ON:" : "CAM_OFF:") + u);
+                        }
+                        continue;
                     }
-                    if (msg.startsWith("CAM_OFF:")) {
-                        String user = msg.substring(8).trim();
-                        cameraStates.put(user, false);
-                        broadcast(msg); // gửi đến mọi người
-                    }
-                    else if (msg.startsWith("CAM_ON:")) {
+
+                    if (msg.startsWith("CAM_ON:")) {
                         String user = msg.substring(7).trim();
                         cameraStates.put(user, true);
                         broadcast(msg);
-                    }
-                    else if (msg.startsWith("JOIN:")) {
-                        String user = msg.substring(5).trim();
-                        this.username = user;
-                        // Gửi lại toàn bộ trạng thái camera hiện tại
-                        for (Map.Entry<String, Boolean> entry : cameraStates.entrySet()) {
-                            if (!entry.getKey().equals(user)) {
-                                String stateMsg = entry.getValue()
-                                        ? "CAM_ON:" + entry.getKey()
-                                        : "CAM_OFF:" + entry.getKey();
-                                sendTo(user, stateMsg);
-                            }
-                        }
+                        continue;
+                    } else if (msg.startsWith("CAM_OFF:")) {
+                        String user = msg.substring(8).trim();
+                        cameraStates.put(user, false);
+                        broadcast(msg);
+                        continue;
+                    } else if (msg.startsWith("EXIT:")) {
+                        handleExit(msg);     // cập nhật DB + broadcast EXIT:<username>|<roomCode>
+                        cameraStates.remove(username);
+                        online.remove(username);
+                        break;
                     }
 
+                    // chat normal
+                    broadcast(msg);
                 }
             } catch (Exception e) {
                 e.printStackTrace();
             } finally {
                 clients.remove(this);
+                if (username != null) {
+                    online.remove(username);
+                    cameraStates.remove(username);
+                }
                 try { socket.close(); } catch (Exception ignored) {}
             }
         }
@@ -112,7 +121,7 @@ public class ChatServerTCP {
                 // Cập nhật LeaveTime trong DB (tra UUID từ Username)
                 updateLeaveTimeByUsername(username, roomCode);
 
-                System.out.println("Nguoi dung roi phong: " + username + " | Phòng: " + roomCode);
+                System.out.println("Nguoi dung roi phong: " + username + " | Phong: " + roomCode);
             } catch (Exception e) {
                 e.printStackTrace();
             }

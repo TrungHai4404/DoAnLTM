@@ -94,6 +94,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
             videoEnabled = false;
             noCamImage = createNoCamImage(160, 120, "CAMERA OFF");
             updateVideoPanel(localClientID, noCamImage);
+            chatClient.sendMessage( videoEnabled ? ("CAM_ON:" + localClientID) : ("CAM_OFF:" + localClientID) );
         }
         // Kiểm tra Mic
         boolean micAvailable = isMicAvailable();
