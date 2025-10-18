@@ -1,4 +1,4 @@
-package Network;
+package Utils;
 import java.security.MessageDigest;
 
 public class PasswordUtils {

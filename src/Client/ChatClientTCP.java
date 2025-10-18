@@ -2,7 +2,7 @@ package Client;
 
 import java.io.*;
 import java.net.*;
-
+import Utils.CryptoUtils;
 public class ChatClientTCP {
     private Socket socket;
     private BufferedReader in;
@@ -15,10 +15,26 @@ public class ChatClientTCP {
     }
 
     public void sendMessage(String msg) {
-        out.println(msg);
+        try {
+            String encrypted = CryptoUtils.encrypt(msg);
+            out.println(encrypted);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
-    public String receiveMessage() throws IOException {
-        return in.readLine();
+    public String receiveMessage() {
+        try {
+            String encrypted = in.readLine();
+            if (encrypted != null) {
+                return CryptoUtils.decrypt(encrypted);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+    public void close() throws IOException {
+        socket.close();
     }
 }

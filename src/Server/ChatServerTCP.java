@@ -7,6 +7,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import Server.MyConnection;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import Utils.CryptoUtils;
 
 public class ChatServerTCP {
     private int port = 6000;
@@ -31,59 +32,75 @@ public class ChatServerTCP {
         private BufferedReader in;
         private PrintWriter out;
         private String username;
+
         public ClientHandler(Socket s) throws IOException {
             socket = s;
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             out = new PrintWriter(socket.getOutputStream(), true);
         }
-        public String getUsername() {  
+
+        public String getUsername() {
             return username;
         }
+
         @Override
         public void run() {
-             try {
-                String msg;
-                while ((msg = in.readLine()) != null) {
-                    if (msg.startsWith("JOIN:")) {
-                        String user = msg.substring(5).trim();
-                        this.username = user;
-                        online.put(user, this);
-                        // mặc định coi là đang "off" cho an toàn (client sẽ báo CAM_ON nếu có cam)
-                        cameraStates.putIfAbsent(user, false);
+            try {
+                String encryptedMsg;
 
-                        // báo cho người khác: có người mới
-                        broadcast("JOINED:" + user);
+                while ((encryptedMsg = in.readLine()) != null) {
+                    String decrypted = null;
+                    try {
+                        decrypted = CryptoUtils.decrypt(encryptedMsg);
+                    } catch (Exception e) {
+                        System.err.println("⚠️ Lỗi giải mã tin nhắn!");
+                        continue;
+                    }
 
-                        // gửi snapshot trạng thái cho người mới
+                    System.out.println("📩 Nhận từ client (" + username + "): " + decrypted);
+
+                    // ==== 1. Xử lý logic tin nhắn gốc ====
+                    if (decrypted.startsWith("JOIN:")) {
+                        username = decrypted.substring(5).trim();
+                        online.put(username, this);
+                        cameraStates.putIfAbsent(username, false);
+
+                        broadcastEncrypted("JOINED:" + username);
+
+                        // Gửi snapshot trạng thái camera cho người mới
                         for (Map.Entry<String, Boolean> e : cameraStates.entrySet()) {
                             String u = e.getKey();
                             boolean on = e.getValue();
-                            // gửi cả chính nó (để đồng bộ label tất cả)
-                            sendMessage((on ? "CAM_ON:" : "CAM_OFF:") + u);
+                            sendEncrypted((on ? "CAM_ON:" : "CAM_OFF:") + u);
                         }
                         continue;
                     }
 
-                    if (msg.startsWith("CAM_ON:")) {
-                        String user = msg.substring(7).trim();
+                    if (decrypted.startsWith("CAM_ON:")) {
+                        String user = decrypted.substring(7).trim();
                         cameraStates.put(user, true);
-                        broadcast(msg);
+                        broadcastEncrypted(decrypted);
                         continue;
-                    } else if (msg.startsWith("CAM_OFF:")) {
-                        String user = msg.substring(8).trim();
+                    }
+
+                    if (decrypted.startsWith("CAM_OFF:")) {
+                        String user = decrypted.substring(8).trim();
                         cameraStates.put(user, false);
-                        broadcast(msg);
+                        broadcastEncrypted(decrypted);
                         continue;
-                    } else if (msg.startsWith("EXIT:")) {
-                        handleExit(msg);     // cập nhật DB + broadcast EXIT:<username>|<roomCode>
+                    }
+
+                    if (decrypted.startsWith("EXIT:")) {
+                        handleExit(decrypted);
                         cameraStates.remove(username);
                         online.remove(username);
                         break;
                     }
 
-                    // chat normal
-                    broadcast(msg);
+                    // 🔁 Gửi tin chat thường
+                    broadcastEncrypted(decrypted);
                 }
+
             } catch (Exception e) {
                 e.printStackTrace();
             } finally {
@@ -92,36 +109,41 @@ public class ChatServerTCP {
                     online.remove(username);
                     cameraStates.remove(username);
                 }
-                try { socket.close(); } catch (Exception ignored) {}
-            }
-        }
-        // Gửi thông điệp đến các clients khác
-        private void sendTo(String username, String msg) {
-            for (ClientHandler c : clients) {
-                if (c.getUsername().equals(username)) {
-                    c.sendMessage(msg);
-                    break;
-                }
+                try {
+                    socket.close();
+                } catch (Exception ignored) {}
             }
         }
 
-        /** Xử lý khi user rời phòng và broadcast cho tất cả client khác **/
-        private void handleExit(String msg) {
+        // === 🔐 Gửi mã hóa ===
+        private void sendEncrypted(String plainMsg) {
             try {
-                // Cú pháp: EXIT:<username>|<roomCode>
-                String[] parts = msg.substring(5).split("\\|");
-                if (parts.length < 2) return;
+                String encrypted = CryptoUtils.encrypt(plainMsg);
+                out.println(encrypted);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
 
+        // === 🔐 Broadcast mã hóa ===
+        private void broadcastEncrypted(String plainMsg) {
+            for (ClientHandler c : clients) {
+                c.sendEncrypted(plainMsg);
+            }
+        }
+
+        private void handleExit(String plainMsg) {
+            try {
+                // EXIT:<username>|<roomCode>
+                String[] parts = plainMsg.substring(5).split("\\|");
+                if (parts.length < 2) return;
                 String username = parts[0].trim();
                 String roomCode = parts[1].trim();
 
-                // Phát lại cho tất cả client khác
-                broadcast("EXIT:" + username + "|" + roomCode);
-
-                // Cập nhật LeaveTime trong DB (tra UUID từ Username)
+                broadcastEncrypted("EXIT:" + username + "|" + roomCode);
                 updateLeaveTimeByUsername(username, roomCode);
 
-                System.out.println("Nguoi dung roi phong: " + username + " | Phong: " + roomCode);
+                System.out.println("👋 " + username + " Da roi phong " + roomCode);
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -141,28 +163,9 @@ public class ChatServerTCP {
                 ps.setString(1, username);
                 ps.setString(2, roomCode);
                 ps.executeUpdate();
-                System.out.println("Da cap nhat thoi gian roi phong " + username);
+                System.out.println("Da cap nhat thoi gian roi phong: " + username);
             } catch (Exception e) {
-                System.err.println("Loi cap nhat thoi gian roi phong" + username);
-                e.printStackTrace();
-            }
-        }
-        /** Gửi tin nhắn cho tất cả client **/
-        private void broadcast(String msg) {
-            for (ClientHandler c : clients) {
-                try {
-                    c.out.println(msg);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-
-        /** Gửi tin nhắn cho client này **/
-        private void sendMessage(String msg) {
-            try {
-                out.println(msg);
-            } catch (Exception e) {
+                System.err.println("Loi cap nhat thoi gian roi phong: " + username);
                 e.printStackTrace();
             }
         }

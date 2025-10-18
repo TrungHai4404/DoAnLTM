@@ -1,6 +1,6 @@
 package frm;
 
-import Network.PasswordUtils;
+import Utils.PasswordUtils;
 import javax.swing.JOptionPane;
 import dao.UserDao;
 import model.User;

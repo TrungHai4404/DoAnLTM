@@ -4,7 +4,7 @@
  */
 package frm;
 
-import Network.PasswordUtils;
+import Utils.PasswordUtils;
 import Server.MyConnection;
 import com.sun.jdi.connect.spi.Connection;
 import dao.UserDao;

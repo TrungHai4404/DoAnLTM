@@ -74,15 +74,19 @@ public class frmVideoRoom extends javax.swing.JFrame {
         localClientID = currentUser.getUsername();
         System.out.println(localClientID + "Da tham gia phong.");
         initComponents();
+        // Cập nhật danh sách thành viên
         loadMembers();
         list_ThanhVien.setModel(memberModel);
+        // Ghi mã phòng
         txtRoomID.setText(roomCode);
+        txtRoomID.setEditable(false);
+        //
         initNetworking();    
+        //Cập nhật thành viên 5s/1l
         new javax.swing.Timer(5000, e ->  loadMembers()).start();
-
     }
     private void initNetworking() {
-        // Bật/tắt video
+ 
         boolean webcamAvailable = true;
         // Kiểm tra webcam
         try {
@@ -95,7 +99,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
         }
         if (!webcamAvailable) {
             videoEnabled = false;
-            noCamImage = createNoCamImage(160, 120, "CAMERA OFF");
+            noCamImage = createNoCamImage(160, 120, "Camera Off");
             updateVideoPanel(localClientID, noCamImage);
         }
         // Kiểm tra Mic
@@ -358,7 +362,6 @@ public class frmVideoRoom extends javax.swing.JFrame {
 
         videoPanelGrid.setBorder(javax.swing.BorderFactory.createLineBorder(new java.awt.Color(0, 0, 0)));
         videoPanelGrid.setCursor(new java.awt.Cursor(java.awt.Cursor.DEFAULT_CURSOR));
-        videoPanelGrid.setLayout(new java.awt.GridLayout(1, 0));
         getContentPane().add(videoPanelGrid, new org.netbeans.lib.awtextra.AbsoluteConstraints(3, 35, 592, 419));
 
         jScrollPane1.setViewportView(list_ThanhVien);
