@@ -11,8 +11,10 @@ public class VideoClientUDP {
         serverAddr = InetAddress.getByName(serverIP);
         socket = new DatagramSocket();
         socket.setSoTimeout(0); // nhận không timeout
-        socket.setReceiveBufferSize(1024 * 1024); // 1MB buffer nhận
-        socket.setSendBufferSize(1024 * 1024);    // 1MB buffer gửi
+        socket.setReceiveBufferSize(4 *1024 * 1024); // 1MB buffer nhận
+        socket.setSendBufferSize(4 *1024 * 1024);    // 1MB buffer gửi
+        
+
     }
 
     /** Gửi frame kèm username (clientID) */

@@ -20,10 +20,14 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.net.DatagramPacket;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
+import javax.imageio.ImageWriteParam;
+import javax.imageio.ImageWriter;
 import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.DataLine;
@@ -120,30 +124,68 @@ public class frmVideoRoom extends javax.swing.JFrame {
             new Thread(() -> {
                 try {
                     while (true) {
-                        if (!capturing || webcam == null || !videoEnabled) {
-                            Thread.sleep(80);
+                        // 🔹 Dừng gửi nếu đang tắt camera hoặc webcam null
+                        if (!videoEnabled || webcam == null || !webcam.isAvailable()) {
+                            Thread.sleep(100);
                             continue;
                         }
+
                         byte[] frameData = webcam.captureFrame();
-                        if (frameData != null && frameData.length > 0) {
-                            BufferedImage img = ImageIO.read(new ByteArrayInputStream(frameData));
-                            BufferedImage resized = resizeFrame(img, 160, 120);
-
-                            // gửi
-                            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                            ImageIO.write(resized, "jpg", baos);
-                            videoClient.sendFrame(baos.toByteArray(), localClientID);
-
-                            // preview local
-                            final BufferedImage preview = resized;
-                            SwingUtilities.invokeLater(() -> updateVideoPanel(localClientID, preview));
+                        if (frameData == null || frameData.length == 0) {
+                            Thread.sleep(50);
+                            continue;
                         }
-                        Thread.sleep(33);
+
+                        BufferedImage img = null;
+                        try {
+                            img = ImageIO.read(new ByteArrayInputStream(frameData));
+                        } catch (Exception ex) {
+                            System.err.println("⚠️ Lỗi đọc frame: " + ex.getMessage());
+                            continue;
+                        }
+
+                        if (img == null) {
+                            Thread.sleep(50);
+                            continue;
+                        }
+
+                        // 🔹 Resize frame nhỏ hơn (đỡ giật)
+                        BufferedImage resized = resizeFrame(img, 160, 120);
+
+                        // 🔹 Ghi JPEG có nén 40% chất lượng để giảm kích thước gói UDP
+                        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+                            Iterator<ImageWriter> writers = ImageIO.getImageWritersByFormatName("jpg");
+                            if (!writers.hasNext()) {
+                                System.err.println("❌ Không tìm thấy JPEG Writer!");
+                                continue;
+                            }
+
+                            ImageWriter writer = writers.next();
+                            ImageWriteParam param = writer.getDefaultWriteParam();
+                            param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+                            param.setCompressionQuality(0.4f); // 40% chất lượng
+
+                            writer.setOutput(ImageIO.createImageOutputStream(baos));
+                            writer.write(null, new IIOImage(resized, null, null), param);
+                            writer.dispose();
+
+                            byte[] smallFrame = baos.toByteArray();
+                            videoClient.sendFrame(smallFrame, localClientID);
+
+                            // 🔹 Hiển thị preview local
+                            SwingUtilities.invokeLater(() -> updateVideoPanel(localClientID, resized));
+
+                        } catch (Exception e) {
+                            System.err.println("❌ Lỗi nén / gửi frame: " + e.getMessage());
+                        }
+
+                        Thread.sleep(33); // ~30 FPS
                     }
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
             }).start();
+
 
 
             // Thread nhận video
@@ -202,7 +244,6 @@ public class frmVideoRoom extends javax.swing.JFrame {
                                     }
                                 });
                             }
-                            
                         }
                         if (msg.startsWith("EXIT:")) {
                             String[] parts = msg.substring(5).split("\\|");
