@@ -258,9 +258,10 @@ public class frmVideoRoom extends javax.swing.JFrame {
         // 🔄 Cập nhật ảnh
         if (img == null) {
             noCamImage = createNoCamImage(160, 120, "Camera Off");
-            updateVideoPanel(localClientID, noCamImage);
+            label.setIcon(new ImageIcon(noCamImage));
+            label.setText("Camera Off");
         } else {
-            label.setIcon(new ImageIcon(img));
+            label.setIcon(new ImageIcon(noCamImage));
             label.setText(null);
         }
 
