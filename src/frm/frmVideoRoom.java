@@ -92,8 +92,8 @@ public class frmVideoRoom extends javax.swing.JFrame {
         }
         if (!webcamAvailable) {
             videoEnabled = false;
-            noCamImage = createNoCamImage(160, 120, "CAMERA OFF");
-            updateVideoPanel(localClientID, noCamImage);
+//            noCamImage = createNoCamImage(160, 120, "CAMERA OFF");
+//            updateVideoPanel(localClientID, noCamImage);
         }
         // Kiểm tra Mic
         boolean micAvailable = isMicAvailable();
@@ -235,7 +235,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
     }
 
     // === Hàm cập nhật khung hình video ===
-    private void updateVideoPanel(String clientID, BufferedImage img) {
+    private synchronized  void updateVideoPanel(String clientID, BufferedImage img) {
         JLabel label = videoPanels.get(clientID);
 
         if (label == null) {
@@ -261,8 +261,10 @@ public class frmVideoRoom extends javax.swing.JFrame {
         }
 
         // 🧱 Làm mới layout
-        videoPanelGrid.revalidate();
-        videoPanelGrid.repaint();
+        SwingUtilities.invokeLater(() -> {
+            videoPanelGrid.revalidate();
+            videoPanelGrid.repaint();
+        });
     }
     // === Khi người dùng tắt cam ===
     private void handleToggleCamera() {
@@ -273,7 +275,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
         }
     }
     // === Khi người dùng rời phòng ===
-    private void removeVideoPanel(String username) {
+    private synchronized  void removeVideoPanel(String username) {
         JLabel label = videoPanels.remove(username);
         if (label != null) {
              SwingUtilities.invokeLater(() -> {
