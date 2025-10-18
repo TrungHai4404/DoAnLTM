@@ -4,6 +4,7 @@ import Client.AudioClientUDP;
 import Client.ChatClientTCP;
 import Client.VideoClientUDP;
 import Client.WebcamCapture;
+import Utils.CryptoUtils;
 import dao.ChatMessageDao;
 import dao.UserDao;
 import dao.VideoRoomDao;
@@ -86,8 +87,8 @@ public class frmVideoRoom extends javax.swing.JFrame {
         new javax.swing.Timer(5000, e ->  loadMembers()).start();
     }
     private void initNetworking() {
- 
         boolean webcamAvailable = true;
+
         // Kiểm tra webcam
         try {
             webcam = new WebcamCapture();
@@ -101,141 +102,163 @@ public class frmVideoRoom extends javax.swing.JFrame {
             videoEnabled = false;
             noCamImage = createNoCamImage(160, 120, "Camera Off");
             updateVideoPanel(localClientID, noCamImage);
-        }
-        // Kiểm tra Mic
-        boolean micAvailable = isMicAvailable();
-        if (!micAvailable) {
-            micEnabled = false;
-            System.out.println("Thiet bi khong ho tro Microphone!!!");
-        }
-        //Neu khong co mic va cam thi cap nhat cac nut
-        if (!videoEnabled){
             btnVideo.setText("None Camera");
             btnVideo.setEnabled(false);
         }
-        if (!micEnabled){
+
+        // Kiểm tra mic
+        boolean micAvailable = isMicAvailable();
+        if (!micAvailable) {
+            micEnabled = false;
             btnMic.setText("None Micro");
             btnMic.setEnabled(false);
         }
-        // Cấu hình layout
+
+        // Layout
         videoPanelGrid.setLayout(new FlowLayout(FlowLayout.LEFT, 5, 5));
-         // Tạo ảnh mặc định "No Camera"
         noCamImage = createNoCamImage(160, 120, "Camera Off");
+
         try {
             videoClient = new VideoClientUDP("192.168.1.2");
             audioClient = new AudioClientUDP("192.168.1.2");
             chatClient = new ChatClientTCP("192.168.1.2");
-            //Them thanh vien tham gia
-            chatClient.sendMessage("JOIN:" + localClientID);
-            chatClient.sendMessage( videoEnabled ? ("CAM_ON:" + localClientID) : ("CAM_OFF:" + localClientID) );
 
-            // Bắt đầu luồng audio
+            // === Gửi JOIN (đã mã hóa) ===
+            chatClient.sendMessage(CryptoUtils.encrypt("JOIN:" + localClientID + "|" + roomCode));
+            // === Gửi trạng thái camera ban đầu ===
+            chatClient.sendMessage(CryptoUtils.encrypt(videoEnabled ? "CAM_ON:" + localClientID : "CAM_OFF:" + localClientID));
+
+            // Bắt đầu audio
             audioClient.start();
-            // Nếu không có webcam, vẫn mở luồng nhận frame
-            if (!videoEnabled) {
-                new Thread(() -> {
-                    try {
-                        byte[] buf = new byte[65536];
-                        while (true) {
-                            DatagramPacket pkt = videoClient.receiveFrame(buf);
-                            byte[] data = java.util.Arrays.copyOf(pkt.getData(), pkt.getLength());
-                            if (data.length <= 36) continue;
-                            String clientID = new String(java.util.Arrays.copyOfRange(data, 0, 36)).trim();
-                            byte[] frameBytes = java.util.Arrays.copyOfRange(data, 36, data.length);
-                            BufferedImage img = ImageIO.read(new ByteArrayInputStream(frameBytes));
-                            if (img != null) {
-                                SwingUtilities.invokeLater(() -> updateVideoPanel(clientID, img));
-                            }
-                        }
-                    } catch (Exception e) { e.printStackTrace(); }
-                }).start();
-            }
-            // Thread gửi video
+
+            // === Thread gửi video ===
             new Thread(() -> {
                 try {
-                    while (true) {                     
+                    while (true) {
+                        if (!videoEnabled) {
+                            Thread.sleep(200);
+                            continue;
+                        }
                         byte[] frameData = webcam.captureFrame();
                         if (frameData != null && frameData.length > 0) {
                             BufferedImage img = ImageIO.read(new ByteArrayInputStream(frameData));
                             BufferedImage resized = resizeFrame(img, 160, 120);
-                            // Gửi frame
+
                             ByteArrayOutputStream baos = new ByteArrayOutputStream();
                             ImageIO.write(resized, "jpg", baos);
                             byte[] smallFrame = baos.toByteArray();
                             videoClient.sendFrame(smallFrame, localClientID);
 
-                            // Cập nhật hình preview local
                             SwingUtilities.invokeLater(() -> updateVideoPanel(localClientID, resized));
                         }
                         Thread.sleep(33);
                     }
-                } catch (Exception e) { e.printStackTrace(); }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
             }).start();
-            // Thread nhận video
+
+            // === Thread nhận video ===
             new Thread(() -> {
                 try {
                     byte[] buf = new byte[65536];
                     while (true) {
                         DatagramPacket pkt = videoClient.receiveFrame(buf);
-                        byte[] data = java.util.Arrays.copyOf(pkt.getData(), pkt.getLength());
+                        byte[] data = Arrays.copyOf(pkt.getData(), pkt.getLength());
                         if (data.length <= 36) continue;
 
-                        String clientID = new String(java.util.Arrays.copyOfRange(data, 0, 36)).trim();
-                        byte[] frameBytes = java.util.Arrays.copyOfRange(data, 36, data.length);
+                        String clientID = new String(Arrays.copyOfRange(data, 0, 36)).trim();
+                        byte[] frameBytes = Arrays.copyOfRange(data, 36, data.length);
                         BufferedImage img = ImageIO.read(new ByteArrayInputStream(frameBytes));
                         if (img != null) {
                             SwingUtilities.invokeLater(() -> updateVideoPanel(clientID, img));
-                        }
-                    }
-                } catch (Exception e) { e.printStackTrace(); }
-            }).start();
-
-            // Thread nhận chat
-            new Thread(() -> {
-                try {
-                    while (true) {
-                        String msg = chatClient.receiveMessage();
-                        if (msg != null) {
-                            if (msg.startsWith("EXIT:")) {
-                                try {
-                                    // Dạng: EXIT:<userID>|<roomCode>
-                                    String[] parts = msg.substring(5).split("\\|");
-                                    if (parts.length >= 1) {
-                                        String exitedUserID = parts[0].trim();
-                                        System.out.println("ID cua label can xoa la: "+ exitedUserID);
-                                        updateVideoPanel(exitedUserID, noCamImage);
-                                        SwingUtilities.invokeLater(() -> {
-                                            removeVideoPanel(exitedUserID);
-                                            removeUserFromList(exitedUserID);
-                                        });
-                                        System.out.println(exitedUserID + " da roi phong.");
-                                    }
-                                } catch (Exception ex) {
-                                    ex.printStackTrace();
-                                }
-                            } else if (msg.startsWith("CAM_OFF:")) {
-                                String clientID = msg.substring(8).trim();
-                                SwingUtilities.invokeLater(() -> updateVideoPanel(clientID, noCamImage));
-                                System.out.println(" Nguoi dung " + clientID + " da tat camera");
-
-                            } else if (msg.startsWith("CAM_ON:")) {
-                                String clientID = msg.substring(7).trim();
-                                System.out.println(" Nguoi dung " + clientID + " da bat camera");
-                                // Không cần làm gì thêm — video sẽ tự hiển thị khi frame mới đến
-
-                            } else {
-                                SwingUtilities.invokeLater(() -> txt_KhungChat.append(msg + "\n"));
-                            }
                         }
                     }
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
             }).start();
+            // === Thread nhận tin nhắn từ server ===
+            new Thread(() -> {
+                try {
+                    while (true) {
+                        String encryptedMsg = chatClient.receiveMessage();
+                        if (encryptedMsg == null || encryptedMsg.trim().isEmpty())
+                            continue;
+
+                        String msg;
+                        try {
+                            // Nếu là Base64, thử giải mã
+                            if (isBase64(encryptedMsg.trim())) {
+                                msg = CryptoUtils.decrypt(encryptedMsg.trim());
+                            } else {
+                                msg = encryptedMsg.trim();
+                            }
+                        } catch (Exception ex) {
+                            System.err.println("⚠️ Lỗi giải mã, hiển thị nguyên bản: " + ex.getMessage());
+                            msg = encryptedMsg.trim();
+                        }
+
+                        // ✅ Xử lý các loại tin nhắn đặc biệt
+                        if (msg.startsWith("ERROR:")) {
+                            final String errorMsg = msg.substring(6);
+                            SwingUtilities.invokeLater(() -> {
+                                JOptionPane.showMessageDialog(
+                                    frmVideoRoom.this,
+                                    errorMsg,
+                                    "Thông báo",
+                                    JOptionPane.WARNING_MESSAGE
+                                );
+                                new frmMainMenu(currentUser).setVisible(true);
+                                frmVideoRoom.this.dispose();
+                            });
+                            return; // Dừng thread
+                        }
+
+                        if (msg.startsWith("EXIT:")) {
+                            final String[] parts = msg.substring(5).split("\\|");
+                            if (parts.length >= 1) {
+                                final String exitedUser = parts[0].trim();
+                                SwingUtilities.invokeLater(() -> {
+                                    removeVideoPanel(exitedUser);
+                                    removeUserFromList(exitedUser);
+                                    System.out.println("🧹 Người dùng " + exitedUser + " đã rời phòng.");
+                                });
+                            }
+                            continue;
+                        }
+
+                        if (msg.startsWith("CAM_OFF:")) {
+                            final String user = msg.substring(8).trim();
+                            SwingUtilities.invokeLater(() -> {
+                                updateVideoPanel(user, noCamImage);
+                                System.out.println("📷 Người dùng " + user + " đã tắt camera.");
+                            });
+                            continue;
+                        }
+
+                        if (msg.startsWith("CAM_ON:")) {
+                            final String user = msg.substring(7).trim();
+                            System.out.println("📷 Người dùng " + user + " đã bật camera.");
+                            continue;
+                        }
+
+                        // ✅ Tin nhắn chat bình thường
+                        final String chatMsg = msg;
+                        SwingUtilities.invokeLater(() -> txt_KhungChat.append(chatMsg + "\n"));
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }).start();
+
+
         } catch (Exception e) {
             e.printStackTrace();
-        } 
+            JOptionPane.showMessageDialog(this, "Không thể kết nối đến server!", "Lỗi", JOptionPane.ERROR_MESSAGE);
+        }
     }
+    
     private void loadMembers() {
         Set<String> uniqueMembers = new LinkedHashSet<>(roomDao.getMembersByRoomCode(roomCode));
         memberModel.clear();
@@ -428,7 +451,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
                 // Gửi tin EXIT:<userID>|<roomCode> tới server
                 if (chatClient != null) {
                     String exitMsg = "EXIT:" + localClientID + "|" + roomCode;
-                    chatClient.sendMessage(exitMsg);
+                    chatClient.sendMessage(CryptoUtils.encrypt(exitMsg));
                 }
                 
                 // Xóa video panel local
@@ -466,7 +489,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
         try {
             if (chatClient != null) {
                 String exitMsg = "EXIT:" + localClientID+ "|" + roomCode;
-                chatClient.sendMessage(exitMsg);
+                chatClient.sendMessage(CryptoUtils.encrypt(exitMsg));
             }            
             noCamImage = createNoCamImage(160, 120, "Camera Off");
             updateVideoPanel(localClientID, noCamImage);
@@ -491,8 +514,11 @@ public class frmVideoRoom extends javax.swing.JFrame {
             btnVideo.setText("Tắt Video");
             System.out.println("Camera On");
 
-            // Gửi thông báo bật cam tới các client khác
-            chatClient.sendMessage("CAM_ON:" + clientID);
+            try {
+                chatClient.sendMessage(CryptoUtils.encrypt("CAM_ON:" + clientID));
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
 
             // Bật cam lại cho chính mình
             try {
@@ -512,7 +538,11 @@ public class frmVideoRoom extends javax.swing.JFrame {
             System.out.println("Camera off");
 
             // Gửi thông báo tắt cam tới các client khác
-            chatClient.sendMessage("CAM_OFF:" + clientID);
+            try {
+                chatClient.sendMessage(CryptoUtils.encrypt("CAM_OFF:" + clientID));
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
 
             updateVideoPanel(clientID, null); 
             videoPanelGrid.revalidate();
@@ -552,7 +582,13 @@ public class frmVideoRoom extends javax.swing.JFrame {
             return false;
         }
     }
-    
+    private boolean isBase64(String s) {
+        if (s == null || s.isEmpty()) return false;
+        s = s.trim();
+        // Base64 thường chỉ chứa các ký tự hợp lệ này
+        return s.matches("^[A-Za-z0-9+/=\\r\\n]+$");
+    }
+
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JButton btnEnd;
     private javax.swing.JButton btnGui;
