@@ -144,7 +144,6 @@ public class frmVideoRoom extends javax.swing.JFrame {
                         System.out.println("📦 Đang chờ gói video...");
                         DatagramPacket pkt = videoClient.receiveFrame(buf);
                         System.out.println("✅ Nhận gói từ " + pkt.getAddress());
-
                         byte[] data = Arrays.copyOf(pkt.getData(), pkt.getLength());
                         if (data.length <= 36) continue;
 
