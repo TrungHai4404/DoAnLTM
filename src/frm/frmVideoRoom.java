@@ -65,21 +65,24 @@ public class frmVideoRoom extends javax.swing.JFrame {
     private boolean micEnabled = true;
             
 
-    public frmVideoRoom(String roomCode, boolean isHost, User user) {
+    public frmVideoRoom(String roomCode, boolean isHost, User user) { 
         this.roomCode = roomCode;
         this.isHost = isHost;
         this.currentUser = user;
         localClientID = currentUser.getUsername();
         System.out.println(localClientID);
-       
+        initComponents();
         list_ThanhVien.setModel(memberModel);
         txtRoomID.setText(roomCode);
-        initComponents();
+        
         initNetworking();    
         loadMembers();
- 
+        
+        // Cập nhật database
+        roomDao.addMember(roomCode, currentUser.getId());
+        JOptionPane.showMessageDialog(this, "Tham gia phòng thành công!");
+        
     }
-
     private void initNetworking() {
         // Bật/tắt video
         boolean webcamAvailable = true;

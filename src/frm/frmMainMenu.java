@@ -192,12 +192,7 @@ public class frmMainMenu extends javax.swing.JFrame {
             if (roomID == null) {
                 JOptionPane.showMessageDialog(this, "Phòng không tồn tại!", "Thông báo", JOptionPane.WARNING_MESSAGE);
                 return;
-            }
-
-            // 1️⃣ Thêm người này vào bảng RoomMembers
-            roomDao.addMember(roomCode, currentUser.getId());
-
-            JOptionPane.showMessageDialog(this, "Tham gia phòng thành công!");
+            }  
             openVideoRoom(roomCode.trim(), false);
         }
     }//GEN-LAST:event_btnThamGiaCuocGoiActionPerformed
@@ -210,13 +205,6 @@ public class frmMainMenu extends javax.swing.JFrame {
                 JOptionPane.showMessageDialog(this, "Không thể tạo phòng mới.", "Lỗi", JOptionPane.ERROR_MESSAGE);
                 return;
             }
-
-            // 2️⃣ Lấy RoomID từ RoomCode
-//            String roomID = roomDao.getRoomIdByCode(roomCode);
-
-            // 3️⃣ Thêm chính người tạo vào danh sách thành viên
-            roomDao.addMember(roomCode, currentUser.getId());
-
             JOptionPane.showMessageDialog(this, "Tạo phòng thành công!\nMã phòng: " + roomCode);
             openVideoRoom(roomCode, true);
         } catch (Exception ex) {
