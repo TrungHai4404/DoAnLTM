@@ -65,14 +65,15 @@ public class frmVideoRoom extends javax.swing.JFrame {
         this.isHost = isHost;
         this.currentUser = user;
         this.localClientID = user.getUsername();
-
+        //Cap nhat DB
+        roomDao.addMember(roomCode, currentUser.getId());
         initComponents();
         txtRoomID.setText(roomCode);
         txtRoomID.setEditable(false);
         loadMembers();
         list_ThanhVien.setModel(memberModel);
         initNetworking();
-
+        
         new javax.swing.Timer(5000, e -> loadMembers()).start();
     }
     private void initNetworking() {
@@ -91,7 +92,6 @@ public class frmVideoRoom extends javax.swing.JFrame {
             videoEnabled = false;
             btnVideo.setText("None Camera");
             btnVideo.setEnabled(false);
-            updateVideoPanel(localClientID, noCamImage);
         }
 
         boolean micAvailable = isMicAvailable();
@@ -107,7 +107,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
             chatClient = new ChatClientTCP("192.168.1.2");
 
             // Gửi JOIN
-            chatClient.sendMessage("JOIN:" + localClientID + "|" + roomCode);
+            chatClient.sendMessage("JOIN:" + localClientID);
             chatClient.sendMessage(videoEnabled ? "CAM_ON:" + localClientID : "CAM_OFF:" + localClientID);
 
             audioClient.start();
@@ -216,7 +216,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
     
 
     // === Hàm cập nhật khung hình video ===
-    private synchronized  void updateVideoPanel(String clientID, BufferedImage img) {
+    private synchronized void updateVideoPanel(String clientID, BufferedImage img) {
         JLabel label = videoPanels.get(clientID);
 
         if (label == null) {
@@ -241,20 +241,11 @@ public class frmVideoRoom extends javax.swing.JFrame {
             label.setIcon(new ImageIcon(img));
             label.setText(null);
         }
-
         // 🧱 Làm mới layout
         SwingUtilities.invokeLater(() -> {
             videoPanelGrid.revalidate();
             videoPanelGrid.repaint();
         });
-    }
-    // === Khi người dùng tắt cam ===
-    private void handleToggleCamera() {
-        videoEnabled = !videoEnabled;
-        if (!videoEnabled) {
-            // Hiển thị hình ảnh tắt cam
-            updateVideoPanel(localClientID, null);
-        }
     }
     // === Khi người dùng rời phòng ===
     private synchronized  void removeVideoPanel(String username) {

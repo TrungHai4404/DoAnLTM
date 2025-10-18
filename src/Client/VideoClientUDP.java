@@ -13,7 +13,7 @@ public class VideoClientUDP {
         socket.setSoTimeout(0); // nhận không timeout
         socket.setReceiveBufferSize(1024 * 1024); // 1MB buffer nhận
         socket.setSendBufferSize(1024 * 1024);    // 1MB buffer gửi
-        System.out.println("UDP Video client started on port: " + socket.getLocalPort());
+        System.out.println("UDP Video client started on port: " + port);
     }
 
     /** Gửi frame kèm username (clientID) */
