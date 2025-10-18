@@ -9,7 +9,7 @@ public class VideoClientUDP {
 
     public VideoClientUDP(String serverIP) throws Exception {
         serverAddr = InetAddress.getByName(serverIP);
-        socket = new DatagramSocket();
+        socket = new DatagramSocket(port);
         socket.setSoTimeout(0); // nhận không timeout
         socket.setReceiveBufferSize(1024 * 1024); // 1MB buffer nhận
         socket.setSendBufferSize(1024 * 1024);    // 1MB buffer gửi
