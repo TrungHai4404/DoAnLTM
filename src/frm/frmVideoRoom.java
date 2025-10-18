@@ -182,77 +182,51 @@ public class frmVideoRoom extends javax.swing.JFrame {
             new Thread(() -> {
                 try {
                     while (true) {
-                        String encryptedMsg = chatClient.receiveMessage();
-                        if (encryptedMsg == null || encryptedMsg.trim().isEmpty())
-                            continue;
+                        String msg = chatClient.receiveMessage();
+                        if (msg == null) continue;
 
-                        String msg;
-                        try {
-                            // Nếu là Base64, thử giải mã
-                            if (isBase64(encryptedMsg.trim())) {
-                                msg = CryptoUtils.decrypt(encryptedMsg.trim());
-                            } else {
-                                msg = encryptedMsg.trim();
-                            }
-                        } catch (Exception ex) {
-                            System.err.println("⚠️ Lỗi giải mã, hiển thị nguyên bản: " + ex.getMessage());
-                            msg = encryptedMsg.trim();
-                        }
-
-                        // ✅ Xử lý các loại tin nhắn đặc biệt
                         if (msg.startsWith("ERROR:")) {
-                            final String errorMsg = msg.substring(6);
                             SwingUtilities.invokeLater(() -> {
                                 JOptionPane.showMessageDialog(
-                                    frmVideoRoom.this,
-                                    errorMsg,
-                                    "Thông báo",
-                                    JOptionPane.WARNING_MESSAGE
+                                        frmVideoRoom.this,
+                                        msg.substring(6),
+                                        "Thông báo",
+                                        JOptionPane.WARNING_MESSAGE
                                 );
                                 new frmMainMenu(currentUser).setVisible(true);
                                 frmVideoRoom.this.dispose();
                             });
-                            return; // Dừng thread
+                            return;
                         }
 
                         if (msg.startsWith("EXIT:")) {
-                            final String[] parts = msg.substring(5).split("\\|");
+                            String[] parts = msg.substring(5).split("\\|");
                             if (parts.length >= 1) {
-                                final String exitedUser = parts[0].trim();
+                                String exitedUser = parts[0].trim();
                                 SwingUtilities.invokeLater(() -> {
                                     removeVideoPanel(exitedUser);
                                     removeUserFromList(exitedUser);
-                                    System.out.println("🧹 Người dùng " + exitedUser + " đã rời phòng.");
                                 });
+                                System.out.println("🧹 " + exitedUser + " rời phòng.");
                             }
                             continue;
                         }
 
                         if (msg.startsWith("CAM_OFF:")) {
-                            final String user = msg.substring(8).trim();
-                            SwingUtilities.invokeLater(() -> {
-                                updateVideoPanel(user, noCamImage);
-                                System.out.println("📷 Người dùng " + user + " đã tắt camera.");
-                            });
+                            String user = msg.substring(8).trim();
+                            SwingUtilities.invokeLater(() -> updateVideoPanel(user, noCamImage));
                             continue;
                         }
 
-                        if (msg.startsWith("CAM_ON:")) {
-                            final String user = msg.substring(7).trim();
-                            System.out.println("📷 Người dùng " + user + " đã bật camera.");
-                            continue;
-                        }
+                        if (msg.startsWith("CAM_ON:")) continue;
 
-                        // ✅ Tin nhắn chat bình thường
-                        final String chatMsg = msg;
-                        SwingUtilities.invokeLater(() -> txt_KhungChat.append(chatMsg + "\n"));
+                        // Tin nhắn chat
+                        SwingUtilities.invokeLater(() -> txt_KhungChat.append(msg + "\n"));
                     }
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
             }).start();
-
-
         } catch (Exception e) {
             e.printStackTrace();
             JOptionPane.showMessageDialog(this, "Không thể kết nối đến server!", "Lỗi", JOptionPane.ERROR_MESSAGE);
@@ -552,7 +526,6 @@ public class frmVideoRoom extends javax.swing.JFrame {
                 System.out.println("Webcam released.");
             }
         }
-        
     }//GEN-LAST:event_btnVideoActionPerformed
 
     private void btnMicActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnMicActionPerformed
