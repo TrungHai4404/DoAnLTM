@@ -16,14 +16,17 @@ public class ChatClientTCP {
         out = new PrintWriter(socket.getOutputStream(), true);
     }
 
-    // ✅ Chỉ mã hóa tin nhắn "chat" thực sự
+    // Gửi tin nhắn (mã hóa nếu là chat)
     public void sendMessage(String msg) {
         try {
-            // Nếu là lệnh hệ thống, gửi dạng rõ
-            if (isSystemCommand(msg)) {
+            if (msg.startsWith("JOIN:")
+                || msg.startsWith("EXIT:")
+                || msg.startsWith("CAM_ON:")
+                || msg.startsWith("CAM_OFF:")
+                || msg.startsWith("JOINED:")
+                || msg.startsWith("ERROR:")) {
                 out.println(msg);
             } else {
-                // Còn nếu là tin nhắn chat của người dùng → mã hóa
                 String encrypted = CryptoUtils.encrypt(msg);
                 out.println(encrypted);
             }
@@ -32,11 +35,21 @@ public class ChatClientTCP {
         }
     }
 
-    // ✅ Nhận tin (server gửi dạng rõ)
+    // Nhận tin nhắn (giải mã nếu cần)
     public String receiveMessage() {
         try {
             String msg = in.readLine();
-            return msg; // server gửi bản rõ, không cần decrypt
+            if (msg == null) return null;
+
+            if (msg.startsWith("JOIN:")
+                || msg.startsWith("EXIT:")
+                || msg.startsWith("CAM_ON:")
+                || msg.startsWith("CAM_OFF:")
+                || msg.startsWith("JOINED:")
+                || msg.startsWith("ERROR:")) {
+                return msg;
+            }
+            return CryptoUtils.decrypt(msg);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -45,15 +58,5 @@ public class ChatClientTCP {
 
     public void close() throws IOException {
         socket.close();
-    }
-
-    // ✅ Hàm xác định tin hệ thống
-    private boolean isSystemCommand(String msg) {
-        return msg.startsWith("JOIN:")
-            || msg.startsWith("EXIT:")
-            || msg.startsWith("CAM_ON:")
-            || msg.startsWith("CAM_OFF:")
-            || msg.startsWith("ERROR:")
-            || msg.startsWith("JOINED:");
     }
 }
