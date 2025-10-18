@@ -18,6 +18,7 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.net.DatagramPacket;
+import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -121,14 +122,32 @@ public class frmVideoRoom extends javax.swing.JFrame {
 
             // Bắt đầu luồng audio
             audioClient.start();
+            // Nếu không có webcam, vẫn mở luồng nhận frame
+            if (!videoEnabled) {
+                new Thread(() -> {
+                    try {
+                        byte[] buf = new byte[65536];
+                        while (true) {
+                            DatagramPacket pkt = videoClient.receiveFrame(buf);
+                            byte[] data = Arrays.copyOf(pkt.getData(), pkt.getLength());
+                            if (data.length <= 36) continue;
+
+                            String sender = new String(Arrays.copyOfRange(data, 0, 36)).trim();
+                            byte[] frameBytes = Arrays.copyOfRange(data, 36, data.length);
+                            BufferedImage img = ImageIO.read(new ByteArrayInputStream(frameBytes));
+                            if (img != null) {
+                                SwingUtilities.invokeLater(() -> updateVideoPanel(sender, img));
+                            }
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }).start();
+            }
             // Thread gửi video
             new Thread(() -> {
                 try {
-                    while (true) {
-                        if (!videoEnabled) { 
-                            Thread.sleep(200); 
-                            continue; 
-                        }
+                    while (true) {                     
                         byte[] frameData = webcam.captureFrame();
                         if (frameData != null && frameData.length > 0) {
                             BufferedImage img = ImageIO.read(new ByteArrayInputStream(frameData));
@@ -261,7 +280,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
             label.setIcon(new ImageIcon(noCamImage));
             label.setText("Camera Off");
         } else {
-            label.setIcon(new ImageIcon(noCamImage));
+            label.setIcon(new ImageIcon(img));
             label.setText(null);
         }
 
