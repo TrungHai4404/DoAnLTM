@@ -38,7 +38,7 @@ public class ChatServerTCP {
             try {
                 String msg;
                 while ((msg = in.readLine()) != null) {
-                    System.out.println("📩 Nhận tin: " + msg);
+                    System.out.println("Nhan tin: " + msg);
 
                     // Nếu client gửi EXIT:<userID>|<roomCode>
                     if (msg.startsWith("EXIT:")) {
@@ -60,53 +60,45 @@ public class ChatServerTCP {
         /** Xử lý khi user rời phòng và broadcast cho tất cả client khác **/
         private void handleExit(String msg) {
             try {
-                // Cú pháp: EXIT:<userID>|<roomCode>
+                // Cú pháp: EXIT:<username>|<roomCode>
                 String[] parts = msg.substring(5).split("\\|");
                 if (parts.length < 2) return;
 
-                String userID = parts[0].trim();
+                String username = parts[0].trim();
                 String roomCode = parts[1].trim();
 
-                // 🔹 Gửi thông báo cho tất cả client khác
-                for (ClientHandler c : clients) {
-                    if (c != this) {
-                        c.sendMessage("EXIT:" + userID);
-                    }
-                }
+                // Phát lại cho tất cả client khác
+                broadcast("EXIT:" + username + "|" + roomCode);
 
-                // 🔹 Cập nhật thời gian rời phòng trong DB
-                updateLeaveTime(userID, roomCode);
+                // Cập nhật LeaveTime trong DB (tra UUID từ Username)
+                updateLeaveTimeByUsername(username, roomCode);
 
-                System.out.println("👋 Người dùng rời phòng: " + userID + " | Phòng: " + roomCode);
+                System.out.println("Nguoi dung roi phong: " + username + " | Phòng: " + roomCode);
             } catch (Exception e) {
                 e.printStackTrace();
             }
         }
 
-        /** Cập nhật LeaveTime vào database **/
-        private void updateLeaveTime(String userID, String roomCode) {
+        private void updateLeaveTimeByUsername(String username, String roomCode) {
             String sql = """
                 UPDATE RoomMembers
                 SET LeaveTime = GETDATE()
-                WHERE UserID = ? 
+                WHERE UserID = (SELECT UserID FROM Users WHERE Username = ?)
                   AND RoomID = (SELECT RoomID FROM VideoRooms WHERE RoomCode = ?)
                   AND LeaveTime IS NULL
             """;
 
             try (Connection conn = MyConnection.getConnection();
                  PreparedStatement ps = conn.prepareStatement(sql)) {
-
-                ps.setObject(1, java.util.UUID.fromString(userID));
+                ps.setString(1, username);
                 ps.setString(2, roomCode);
                 ps.executeUpdate();
-
-                System.out.println("🕓 Cập nhật thời gian rời phòng thành công.");
+                System.out.println("Da cap nhat thoi gian roi phong " + username);
             } catch (Exception e) {
-                System.err.println("⚠️ Lỗi cập nhật LeaveTime trong DB:");
+                System.err.println("Loi cap nhat thoi gian roi phong" + username);
                 e.printStackTrace();
             }
         }
-
         /** Gửi tin nhắn cho tất cả client **/
         private void broadcast(String msg) {
             for (ClientHandler c : clients) {

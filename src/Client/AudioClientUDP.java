@@ -31,7 +31,7 @@ public class AudioClientUDP {
 
     public boolean toggleMic() {
         micEnabled = !micEnabled;
-        System.out.println(micEnabled ? "🎤 Micro bật" : "🔇 Micro tắt");
+        System.out.println(micEnabled ? " Micro on" : "🔇 Micro off");
         return micEnabled;
     }
 
@@ -42,12 +42,12 @@ public class AudioClientUDP {
         if (mic != null && mic.isOpen()) {
             mic.stop();
             mic.close();
-            System.out.println("🎤 Mic đã được giải phóng.");
+            System.out.println("Mic release.");
         }
         if (speakers != null && speakers.isOpen()) {
             speakers.stop();
             speakers.close();
-            System.out.println("🔊 Loa đã được giải phóng.");
+            System.out.println("Speaker release");
         }
 
         // Đóng socket sau cùng để ngắt các luồng đang chờ
@@ -63,7 +63,7 @@ public class AudioClientUDP {
             startReceiving();
             startPlaying(); // 💡 SỬA LỖI: Bắt đầu luồng phát âm thanh riêng biệt
         } catch (LineUnavailableException e) {
-            System.err.println("🔴 LỖI: Không thể truy cập mic/loa. Hãy chắc chắn chúng không bị ứng dụng khác sử dụng và đã được cấp quyền.");
+            System.err.println("Khong the truy cap Micro va Loa");
             stop(); // Dọn dẹp nếu không khởi tạo được
         }
     }
@@ -88,7 +88,10 @@ public class AudioClientUDP {
             byte[] buffer = new byte[BUFFER_SIZE];
             while (running) {
                 try {
-                    if (micEnabled) {
+                    if (!micEnabled) {
+                        Thread.sleep(200);
+                        continue;
+                    }else if (micEnabled) {
                         int bytesRead = mic.read(buffer, 0, buffer.length);
                         if (bytesRead > 0) {
                             DatagramPacket pkt = new DatagramPacket(buffer, 0, bytesRead, serverAddr, port);
@@ -160,4 +163,6 @@ public class AudioClientUDP {
         boolean bigEndian = false;
         return new AudioFormat(sampleRate, sampleSizeInBits, channels, signed, bigEndian);
     }
+    
+
 }

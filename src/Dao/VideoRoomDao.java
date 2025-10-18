@@ -60,7 +60,6 @@ public class VideoRoomDao {
                 psInsert.setObject(1, java.util.UUID.fromString(roomID)); // ✅ đúng kiểu UNIQUEIDENTIFIER
                 psInsert.setObject(2, java.util.UUID.fromString(userID)); // ✅ đúng kiểu UNIQUEIDENTIFIER
                 psInsert.executeUpdate();
-                System.out.println("✅ Thêm thành viên vào phòng thành công!");
             }
 
         } catch (IllegalArgumentException ex) {
