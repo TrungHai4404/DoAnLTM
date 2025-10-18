@@ -69,19 +69,19 @@ public class frmVideoRoom extends javax.swing.JFrame {
         this.roomCode = roomCode;
         this.isHost = isHost;
         this.currentUser = user;
-        localClientID = currentUser.getUsername();
-        System.out.println(localClientID);
-        initComponents();
-        list_ThanhVien.setModel(memberModel);
-        txtRoomID.setText(roomCode);
-        
-        initNetworking();    
-        loadMembers();
-        
         // Cập nhật database
         roomDao.addMember(roomCode, currentUser.getId());
         JOptionPane.showMessageDialog(this, "Tham gia phòng thành công!");
-        
+        //Lấy Username của người tham gia
+        localClientID = currentUser.getUsername();
+        System.out.println(localClientID + "Da tham gia phong.");
+        initComponents();
+        loadMembers();
+        list_ThanhVien.setModel(memberModel);
+        txtRoomID.setText(roomCode);
+        initNetworking();    
+        new javax.swing.Timer(5000, e ->  loadMembers()).start();
+
     }
     private void initNetworking() {
         // Bật/tắt video
@@ -280,7 +280,6 @@ public class frmVideoRoom extends javax.swing.JFrame {
     private void removeVideoPanel(String username) {
         JLabel label = videoPanels.remove(username);
         if (label != null) {
-            webcam.release();
              SwingUtilities.invokeLater(() -> {
                 videoPanelGrid.remove(label);
                 videoPanelGrid.revalidate();
@@ -441,8 +440,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
             if (chatClient != null) {
                 String exitMsg = "EXIT:" + localClientID+ "|" + roomCode;
                 chatClient.sendMessage(exitMsg);
-            }
-            
+            }            
             noCamImage = createNoCamImage(160, 120, "Camera Off");
             updateVideoPanel(localClientID, noCamImage);
             audioClient.stop();
