@@ -263,8 +263,8 @@ public class frmVideoRoom extends javax.swing.JFrame {
         
         // 🔄 Cập nhật ảnh
         if (img == null) {
-            label.setIcon(new ImageIcon(noCamImage));
-            label.setText("Camera Off");
+            noCamImage = createNoCamImage(160, 120, "Camera Off");
+            updateVideoPanel(localClientID, noCamImage);
         } else {
             label.setIcon(new ImageIcon(img));
             label.setText(null);
@@ -413,9 +413,11 @@ public class frmVideoRoom extends javax.swing.JFrame {
                 if (audioClient != null) audioClient.stop();
                 if (webcam != null) webcam.release();
                 // Xóa video panel local
-                updateVideoPanel(localClientID, null);
+                noCamImage = createNoCamImage(160, 120, "Camera Off");
+                updateVideoPanel(localClientID, noCamImage);
                 Thread.sleep(100);
                 SwingUtilities.invokeLater(() -> removeVideoPanel(localClientID));
+                SwingUtilities.invokeLater(() -> removeUserFromList(localClientID));
                 // Quay lại menu chính
                 new frmMainMenu(currentUser).setVisible(true);
                 this.dispose();
@@ -446,7 +448,8 @@ public class frmVideoRoom extends javax.swing.JFrame {
             }
             if (audioClient != null) audioClient.stop();
             if (webcam != null) webcam.release();
-            updateVideoPanel(localClientID, null);
+            noCamImage = createNoCamImage(160, 120, "Camera Off");
+            updateVideoPanel(localClientID, noCamImage);
             Thread.sleep(100);
             SwingUtilities.invokeLater(() -> {
                 removeVideoPanel(localClientID);
