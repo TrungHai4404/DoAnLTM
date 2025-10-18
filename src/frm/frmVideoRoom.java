@@ -71,15 +71,13 @@ public class frmVideoRoom extends javax.swing.JFrame {
         this.currentUser = user;
         localClientID = currentUser.getUsername();
         System.out.println(localClientID);
-        initComponents();
+       
         list_ThanhVien.setModel(memberModel);
         txtRoomID.setText(roomCode);
-        
-        initNetworking();
-        
+        initComponents();
+        initNetworking();    
         loadMembers();
-        // Cập nhật danh sách thành viên mỗi 5 giây
-//        new javax.swing.Timer(5000, e -> loadMembers()).start();    
+ 
     }
 
     private void initNetworking() {
@@ -88,14 +86,11 @@ public class frmVideoRoom extends javax.swing.JFrame {
         // Kiểm tra webcam
         try {
             webcam = new WebcamCapture();
-            byte[] testFrame = webcam.captureFrame();
-            if (testFrame == null || testFrame.length == 0) {
+            if (!webcam.isAvailable()) {
                 webcamAvailable = false;
             }
         } catch (Exception e) {
             webcamAvailable = false;
-            System.err.println("Khong tim thay webcam");
-
         }
         if (!webcamAvailable) {
             videoEnabled = false;
