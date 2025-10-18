@@ -180,7 +180,14 @@ public class frmVideoRoom extends javax.swing.JFrame {
                     while (true) {
                         String msg = chatClient.receiveMessage();
                         if (msg == null) continue;
-
+                        if (msg.startsWith("JOINED:")) {
+                            String u = msg.substring(7).trim();
+                            SwingUtilities.invokeLater(() -> {
+                                if (!videoPanels.containsKey(u)) {
+                                    updateVideoPanel(u, null); // tạo label (sẽ là "Camera Off" nếu null) — hoặc set text "Đang kết nối..."
+                                }
+                            });
+                        }
                         if (msg.startsWith("EXIT:")) {
                             String[] parts = msg.substring(5).split("\\|");
                             if (parts.length > 0) {
