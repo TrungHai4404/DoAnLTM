@@ -92,8 +92,8 @@ public class frmVideoRoom extends javax.swing.JFrame {
         }
         if (!webcamAvailable) {
             videoEnabled = false;
-//            noCamImage = createNoCamImage(160, 120, "CAMERA OFF");
-//            updateVideoPanel(localClientID, noCamImage);
+            noCamImage = createNoCamImage(160, 120, "CAMERA OFF");
+            updateVideoPanel(localClientID, noCamImage);
         }
         // Kiểm tra Mic
         boolean micAvailable = isMicAvailable();
@@ -102,7 +102,10 @@ public class frmVideoRoom extends javax.swing.JFrame {
             System.out.println("Thiet bi khong ho tro Microphone!!!");
         }
         //Neu khong co mic va cam thi cap nhat cac nut
-        if (!videoEnabled) btnVideo.setText("None Camera");
+        if (!videoEnabled){
+            btnVideo.setText("None Camera");
+            
+        }
         if (!micEnabled) btnMic.setText("None Micro");
         // Cấu hình layout
         videoPanelGrid.setLayout(new FlowLayout(FlowLayout.LEFT, 5, 5));
@@ -112,6 +115,9 @@ public class frmVideoRoom extends javax.swing.JFrame {
             videoClient = new VideoClientUDP("192.168.1.2");
             audioClient = new AudioClientUDP("192.168.1.2");
             chatClient = new ChatClientTCP("192.168.1.2");
+            //Them thanh vien tham gia
+            chatClient.sendMessage("JOIN:" + localClientID);
+
             // Bắt đầu luồng audio
             audioClient.start();
             // Thread gửi video
@@ -151,9 +157,6 @@ public class frmVideoRoom extends javax.swing.JFrame {
                         String clientID = new String(java.util.Arrays.copyOfRange(data, 0, 36)).trim();
                         byte[] frameBytes = java.util.Arrays.copyOfRange(data, 36, data.length);
                         BufferedImage img = ImageIO.read(new ByteArrayInputStream(frameBytes));
-                        if (img != null) {
-                            SwingUtilities.invokeLater(() -> updateVideoPanel(clientID, img));
-                        }
                         if (img != null) {
                             SwingUtilities.invokeLater(() -> updateVideoPanel(clientID, img));
                         }

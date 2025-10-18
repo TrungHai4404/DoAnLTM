@@ -5,10 +5,13 @@ import java.net.*;
 import java.sql.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import Server.MyConnection;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class ChatServerTCP {
     private int port = 6000;
     private CopyOnWriteArrayList<ClientHandler> clients = new CopyOnWriteArrayList<>();
+    private ConcurrentHashMap<String, Boolean> cameraStates = new ConcurrentHashMap<>();
 
     public ChatServerTCP() throws Exception {
         ServerSocket serverSocket = new ServerSocket(port);
@@ -26,13 +29,15 @@ public class ChatServerTCP {
         private Socket socket;
         private BufferedReader in;
         private PrintWriter out;
-
+        private String username;
         public ClientHandler(Socket s) throws IOException {
             socket = s;
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             out = new PrintWriter(socket.getOutputStream(), true);
         }
-
+         public String getUsername() {  // 🔹 Thêm hàm getter
+                return username;
+            }
         @Override
         public void run() {
             try {
@@ -49,12 +54,45 @@ public class ChatServerTCP {
                     } else {
                         broadcast(msg);
                     }
+                    if (msg.startsWith("CAM_OFF:")) {
+                        String user = msg.substring(8).trim();
+                        cameraStates.put(user, false);
+                        broadcast(msg); // gửi đến mọi người
+                    }
+                    else if (msg.startsWith("CAM_ON:")) {
+                        String user = msg.substring(7).trim();
+                        cameraStates.put(user, true);
+                        broadcast(msg);
+                    }
+                    else if (msg.startsWith("JOIN:")) {
+                        String user = msg.substring(5).trim();
+                        this.username = user;
+                        // Gửi lại toàn bộ trạng thái camera hiện tại
+                        for (Map.Entry<String, Boolean> entry : cameraStates.entrySet()) {
+                            if (!entry.getKey().equals(user)) {
+                                String stateMsg = entry.getValue()
+                                        ? "CAM_ON:" + entry.getKey()
+                                        : "CAM_OFF:" + entry.getKey();
+                                sendTo(user, stateMsg);
+                            }
+                        }
+                    }
+
                 }
             } catch (Exception e) {
                 e.printStackTrace();
             } finally {
                 clients.remove(this);
                 try { socket.close(); } catch (Exception ignored) {}
+            }
+        }
+        // Gửi thông điệp đến các clients khác
+        private void sendTo(String username, String msg) {
+            for (ClientHandler c : clients) {
+                if (c.getUsername().equals(username)) {
+                    c.sendMessage(msg);
+                    break;
+                }
             }
         }
 
