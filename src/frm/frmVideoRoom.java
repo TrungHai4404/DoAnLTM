@@ -59,11 +59,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
     // Các thuộc tính
     private VideoClientUDP videoClient;
     private ChatClientTCP chatClient;
-    private AudioClientUDP audioClient;
-
-    // Bật/tắt video, mic
-    boolean webcamAvailable = true;
-    
+    private AudioClientUDP audioClient;  
     WebcamCapture webcam = new WebcamCapture();
     private boolean videoEnabled = true;
     private boolean micEnabled = true;
@@ -87,8 +83,10 @@ public class frmVideoRoom extends javax.swing.JFrame {
     }
 
     private void initNetworking() {
+        // Bật/tắt video
+        boolean webcamAvailable = true;
         // Kiểm tra webcam
-       try {
+        try {
             webcam = new WebcamCapture();
             byte[] testFrame = webcam.captureFrame();
             if (testFrame == null || testFrame.length == 0) {
@@ -96,10 +94,13 @@ public class frmVideoRoom extends javax.swing.JFrame {
             }
         } catch (Exception e) {
             webcamAvailable = false;
+            System.err.println("Khong tim thay webcam");
+
         }
         if (!webcamAvailable) {
             videoEnabled = false;
-            System.out.println("Thiet bi khong ho tro Camera!!!");
+            noCamImage = createNoCamImage(160, 120, "CAMERA OFF");
+            updateVideoPanel(localClientID, noCamImage);
         }
         // Kiểm tra Mic
         boolean micAvailable = isMicAvailable();
@@ -110,11 +111,6 @@ public class frmVideoRoom extends javax.swing.JFrame {
         //Neu khong co mic va cam thi cap nhat cac nut
         if (!videoEnabled) btnVideo.setText("None Camera");
         if (!micEnabled) btnMic.setText("None Micro");
-        if (!webcamAvailable) {
-            videoEnabled = false;
-            noCamImage = createNoCamImage(160, 120, "Camera Off");
-            updateVideoPanel(localClientID, noCamImage);
-        }
         // Cấu hình layout
         videoPanelGrid.setLayout(new FlowLayout(FlowLayout.LEFT, 5, 5));
          // Tạo ảnh mặc định "No Camera"
@@ -286,6 +282,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
     private void removeVideoPanel(String username) {
         JLabel label = videoPanels.remove(username);
         if (label != null) {
+            webcam.release();
              SwingUtilities.invokeLater(() -> {
                 videoPanelGrid.remove(label);
                 videoPanelGrid.revalidate();
@@ -409,12 +406,13 @@ public class frmVideoRoom extends javax.swing.JFrame {
                     String exitMsg = "EXIT:" + localClientID + "|" + roomCode;
                     chatClient.sendMessage(exitMsg);
                 }
-                // Giải phóng webcam và audio
-                if (audioClient != null) audioClient.stop();
-                if (webcam != null) webcam.release();
+                
                 // Xóa video panel local
                 noCamImage = createNoCamImage(160, 120, "Camera Off");
                 updateVideoPanel(localClientID, noCamImage);
+                // Giải phóng webcam và audio
+                audioClient.stop();
+                webcam.release();
                 Thread.sleep(100);
                 SwingUtilities.invokeLater(() -> removeVideoPanel(localClientID));
                 SwingUtilities.invokeLater(() -> removeUserFromList(localClientID));
@@ -446,10 +444,11 @@ public class frmVideoRoom extends javax.swing.JFrame {
                 String exitMsg = "EXIT:" + localClientID+ "|" + roomCode;
                 chatClient.sendMessage(exitMsg);
             }
-            if (audioClient != null) audioClient.stop();
-            if (webcam != null) webcam.release();
+            
             noCamImage = createNoCamImage(160, 120, "Camera Off");
             updateVideoPanel(localClientID, noCamImage);
+            audioClient.stop();
+            webcam.release();
             Thread.sleep(100);
             SwingUtilities.invokeLater(() -> {
                 removeVideoPanel(localClientID);
@@ -492,9 +491,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
             // Gửi thông báo tắt cam tới các client khác
             chatClient.sendMessage("CAM_OFF:" + clientID);
 
-            updateVideoPanel(clientID, null);
-
-            
+            updateVideoPanel(clientID, null); 
             videoPanelGrid.revalidate();
             videoPanelGrid.repaint();
             if (webcam != null) {
