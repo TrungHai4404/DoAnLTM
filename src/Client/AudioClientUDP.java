@@ -14,6 +14,7 @@ public class AudioClientUDP {
     private static final byte[] HEARTBEAT_DATA = "HBEAT".getBytes();
     private static final int HEARTBEAT_INTERVAL = 3000; // 3 giây gửi ping
     private static final int HEARTBEAT_TIMEOUT = 9000;
+    private volatile boolean disconnectedHandled = false;
     
     public interface ConnectionListener {
         void onServerDisconnected(String type);
@@ -148,7 +149,9 @@ public class AudioClientUDP {
             } catch (SocketTimeoutException e) {
                 // timeout → bỏ qua
             } catch (SocketException e) {
-                 if (running) notifyDisconnect("AUDIO", e);
+                if (!running)
+                    break;
+                notifyDisconnect("AUDIO", e);
                 break;
             } catch (IOException e) {
                 if (running) notifyDisconnect("AUDIO", e);
@@ -212,10 +215,18 @@ public class AudioClientUDP {
         }, "Audio-HB-Mon").start();
     }
     private void notifyDisconnect(String type, Exception e) {
-        System.err.println("🔌 Mất kết nối tới " + type + " server" +
-                (e != null ? ": " + e.getMessage() : ""));
-        if (listener != null)
+        if (disconnectedHandled) return; // tránh gọi nhiều lần
+        disconnectedHandled = true;
+
+        System.err.println("🔌 Mất kết nối tới " + type + " server"
+                + (e != null ? ": " + e.getMessage() : ""));
+
+        running = false; // dừng tất cả các vòng while
+        //stop(); // đóng mic, speaker, socket,...
+
+        if (listener != null) {
             SwingUtilities.invokeLater(() -> listener.onServerDisconnected(type));
+        }
     }
     private AudioFormat getAudioFormat() {
         float sampleRate = 16000.0F; // 💡 TỐI ƯU: Dùng 16kHz, tốt hơn cho voice chat và tương thích rộng rãi

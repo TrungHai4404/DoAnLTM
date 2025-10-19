@@ -15,6 +15,7 @@ import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.Image;
+import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -23,10 +24,14 @@ import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.SocketException;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
+import javax.imageio.ImageWriteParam;
+import javax.imageio.ImageWriter;
 import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.DataLine;
@@ -99,8 +104,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
 
         if (!webcamAvailable) {
             videoEnabled = false;
-            btnVideo.setText("None Camera");
-            btnVideo.setEnabled(false);
+            btnVideo.setText("Bật Video");
         }
 
         boolean micAvailable = isMicAvailable();
@@ -113,13 +117,10 @@ public class frmVideoRoom extends javax.swing.JFrame {
             videoClient = new VideoClientUDP("192.168.1.2");
             audioClient = new AudioClientUDP("192.168.1.2");
             chatClient = new ChatClientTCP("192.168.1.2");
-            audioClient.setConnectionListener(type -> {
-                SwingUtilities.invokeLater(() -> handleServerDisconnect(type));
-            });
-            videoClient.setConnectionListener(type -> {
-                SwingUtilities.invokeLater(() -> handleServerDisconnect(type));
-            });
-            // Gửi JOIN
+            //Kiểm tra kết nối đến server UDP
+            audioClient.setConnectionListener(type -> { SwingUtilities.invokeLater(() -> handleServerDisconnect(type));});
+            videoClient.setConnectionListener(type -> { SwingUtilities.invokeLater(() -> handleServerDisconnect(type));});
+            // Gửi thông điệp JOIN
             chatClient.sendMessage("JOIN:" + localClientID);
             chatClient.sendMessage(videoEnabled ? "CAM_ON:" + localClientID : "CAM_OFF:" + localClientID);
 
@@ -128,57 +129,116 @@ public class frmVideoRoom extends javax.swing.JFrame {
             // Gửi video
             new Thread(() -> {
                 try {
+                    long lastTime = System.currentTimeMillis();
                     while (true) {
                         if (!capturing || webcam == null || !videoEnabled) {
                             Thread.sleep(80);
                             continue;
                         }
+
                         byte[] frameData = webcam.captureFrame();
                         if (frameData != null && frameData.length > 0) {
                             BufferedImage img = ImageIO.read(new ByteArrayInputStream(frameData));
+                            if (img == null) continue;
+
+                            // ✅ Resize khung hình (chỉ resize khi cần)
                             BufferedImage resized = resizeFrame(img, 160, 120);
 
-                            // gửi
+                            // ✅ Nén JPEG với chất lượng cao nhưng không quá nặng
                             ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                            ImageIO.write(resized, "jpg", baos);
-                            videoClient.sendFrame(baos.toByteArray(), localClientID);
+                            Iterator<ImageWriter> writers = ImageIO.getImageWritersByFormatName("jpg");
+                            if (!writers.hasNext()) {
+                                System.err.println("❌ Không tìm thấy bộ mã hóa JPG!");
+                                continue;
+                            }
+                            ImageWriter writer = writers.next();
+                            ImageWriteParam param = writer.getDefaultWriteParam();
+                            param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+                            param.setCompressionQuality(0.85f); // 85% chất lượng, rõ nét, gói nhẹ
 
-                            // preview local
-                            final BufferedImage preview = resized;
-                            SwingUtilities.invokeLater(() -> updateVideoPanel(localClientID, preview));
+                            writer.setOutput(ImageIO.createImageOutputStream(baos));
+                            writer.write(null, new IIOImage(resized, null, null), param);
+                            writer.dispose();
+
+                            byte[] jpegBytes = baos.toByteArray();
+                            videoClient.sendFrame(jpegBytes, localClientID);
+
+                            // ✅ Hiển thị preview (giao diện chính)
+                            SwingUtilities.invokeLater(() -> updateVideoPanel(localClientID, resized));
                         }
-                        Thread.sleep(33);
+
+                        // ✅ Giữ tốc độ khung hình ~30fps
+                        long frameTime = 33 - (System.currentTimeMillis() - lastTime);
+                        if (frameTime > 0) Thread.sleep(frameTime);
+                        lastTime = System.currentTimeMillis();
                     }
                 } catch (Exception e) {
                     System.err.println("❌ Lỗi gửi video: " + e.getMessage());
                 }
             }).start();
-            // Thread nhận video
+
+            // 🧠 Thread nhận video (UDP Receive)
             new Thread(() -> {
                 try {
                     byte[] buf = new byte[65536];
+                    long lastFrameTime = System.currentTimeMillis();
+                    int frameCount = 0;
+                    long lastFpsCheck = System.currentTimeMillis();
+
                     while (true) {
                         DatagramPacket pkt = videoClient.receiveFrame(buf);
-                        if (pkt == null) continue;
+                        if (pkt == null) {
+                            Thread.sleep(10);
+                            continue;
+                        }
+
                         byte[] data = Arrays.copyOf(pkt.getData(), pkt.getLength());
                         if (data.length <= 36) continue;
 
+                        // 🧩 Lấy clientID (người gửi)
                         String clientID = new String(Arrays.copyOfRange(data, 0, 36)).trim();
 
-                        // Nếu phía server nói clientID đang tắt cam -> bỏ qua frame trễ
+                        // Nếu user tắt cam thì bỏ qua frame
                         if (!remoteCamOn.getOrDefault(clientID, true)) {
                             continue;
                         }
 
+                        // 🧩 Giải mã khung hình
                         byte[] frameBytes = Arrays.copyOfRange(data, 36, data.length);
-                        BufferedImage img = ImageIO.read(new ByteArrayInputStream(frameBytes));
-                        if (img != null)
-                            SwingUtilities.invokeLater(() -> updateVideoPanel(clientID, img));
+                        try (ByteArrayInputStream bais = new ByteArrayInputStream(frameBytes)) {
+                            BufferedImage img = ImageIO.read(bais);
+                            if (img != null) {
+                                SwingUtilities.invokeLater(() -> updateVideoPanel(clientID, img));
+                            } else {
+                                System.err.println("Frame lỗi hoặc không hợp lệ từ: " + clientID);
+                            }
+                        }
+
+                        // ✅ FPS debug nhẹ
+                        frameCount++;
+                        if (System.currentTimeMillis() - lastFpsCheck > 1000) {
+                            System.out.println("FPS nhận (" + clientID + "): " + frameCount);
+                            frameCount = 0;
+                            lastFpsCheck = System.currentTimeMillis();
+                        }
+
+                        // Điều chỉnh tốc độ nhận cho mượt hơn
+                        long delta = System.currentTimeMillis() - lastFrameTime;
+                        if (delta < 30) Thread.sleep(30 - delta);
+                        lastFrameTime = System.currentTimeMillis();
                     }
-                }catch (Exception e) {
+
+                } catch (SocketException e) {
+                    System.err.println("❌ Mất kết nối tới Video Server: " + e.getMessage());
+                    SwingUtilities.invokeLater(() -> handleServerDisconnect("VIDEO"));
+                } catch (IOException e) {
+                    System.err.println("⚠️ Lỗi đọc video UDP: " + e.getMessage());
+                    SwingUtilities.invokeLater(() -> handleServerDisconnect("VIDEO"));
+                } catch (Exception e) {
                     e.printStackTrace();
                 }
             }).start();
+
             // Nhận tin chat & thông điệp
             new Thread(() -> {
                 try {
@@ -341,12 +401,17 @@ public class frmVideoRoom extends javax.swing.JFrame {
         return img;
     }
     private BufferedImage resizeFrame(BufferedImage img, int width, int height) {
-        Image scaled = img.getScaledInstance(width, height, Image.SCALE_SMOOTH);
-        BufferedImage resized = new BufferedImage(width, height, BufferedImage.TYPE_3BYTE_BGR);
-        Graphics2D g2d = resized.createGraphics();
-        g2d.drawImage(scaled, 0, 0, null);
+        BufferedImage resizedImage = new BufferedImage(width, height, BufferedImage.TYPE_3BYTE_BGR);
+        Graphics2D g2d = resizedImage.createGraphics();
+
+        // Tùy chọn: Bật các gợi ý để có chất lượng tốt hơn
+        g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+
+        // Vẽ trực tiếp ảnh gốc vào ảnh mới với kích thước mong muốn
+        g2d.drawImage(img, 0, 0, width, height, null);
         g2d.dispose();
-        return resized;
+
+        return resizedImage;
     }
     @SuppressWarnings("unchecked")
     // <editor-fold defaultstate="collapsed" desc="Generated Code">//GEN-BEGIN:initComponents

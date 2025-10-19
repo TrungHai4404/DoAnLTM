@@ -15,6 +15,7 @@ public class VideoClientUDP {
     private static final int HEARTBEAT_TIMEOUT = 9000;  // 9 giây không nhận → xem như mất kết nối
     private volatile boolean running = true;
     private long lastResponseTime = System.currentTimeMillis();
+    private volatile boolean disconnectedHandled = false;
 
     public void setConnectionListener(ConnectionListener listener) {
         this.listener = listener;
@@ -23,8 +24,8 @@ public class VideoClientUDP {
         serverAddr = InetAddress.getByName(serverIP);
         socket = new DatagramSocket();
         socket.setSoTimeout(3000); // nhận không timeout
-        socket.setReceiveBufferSize(1024 * 1024); // 1MB buffer nhận
-        socket.setSendBufferSize(1024 * 1024);    // 1MB buffer gửi
+        socket.setReceiveBufferSize(2 * 1024 * 1024); // 1MB buffer nhận
+        socket.setSendBufferSize(2 * 1024 * 1024);    // 1MB buffer gửi
         startHeartbeatSender();
         startHeartbeatMonitor();
     }
@@ -91,10 +92,18 @@ public class VideoClientUDP {
     }
 
     private void notifyDisconnect(String type, Exception e) {
-        System.err.println("🔌 Mất kết nối tới " + type + " server" +
-                (e != null ? ": " + e.getMessage() : ""));
-        if (listener != null)
+        if (disconnectedHandled) return; // tránh gọi nhiều lần
+        disconnectedHandled = true;
+
+        System.err.println("🔌 Mất kết nối tới " + type + " server"
+                + (e != null ? ": " + e.getMessage() : ""));
+
+        running = false; // dừng tất cả các vòng while
+        //stop(); // đóng mic, speaker, socket,...
+
+        if (listener != null) {
             SwingUtilities.invokeLater(() -> listener.onServerDisconnected(type));
+        }
     }
 
     public void close() {

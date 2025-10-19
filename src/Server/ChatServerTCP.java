@@ -106,7 +106,9 @@ public class ChatServerTCP {
                     broadcastEncrypted(decrypted);
                 }
 
-            } catch (Exception e) {
+            } catch(SocketException se){
+                System.err.println(" Client " + username + " disconected: " + se.getMessage());
+            }catch (Exception e) {
                 e.printStackTrace();
             } finally {
                 clients.remove(this);
@@ -157,7 +159,7 @@ public class ChatServerTCP {
 
                 broadcastEncrypted("EXIT:" + username + "|" + roomCode);
                 roomDao.markLeave(username, roomCode);
-                System.out.println("👋 " + username + " đã rời phòng " + roomCode);
+                System.out.println(username + " đã rời phòng " + roomCode);
             } catch (Exception e) {
                 e.printStackTrace();
             }
