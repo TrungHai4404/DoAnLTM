@@ -1,14 +1,20 @@
 package Client;
 
+import java.io.IOException;
 import javax.sound.sampled.*;
 import java.net.*;
 import java.util.Arrays;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import javax.swing.SwingUtilities;
 
 public class AudioClientUDP {
     private final int port = 5001;
     private final int BUFFER_SIZE = 512; // Kích thước buffer nhỏ hơn để giảm độ trễ
     private static final byte[] HEARTBEAT_DATA = "HBEAT".getBytes();
+    private ConnectionListener listener;
+    public void setConnectionListener(ConnectionListener listener) {
+        this.listener = listener;
+    }
 
     private DatagramSocket socket;
     private InetAddress serverAddr;
@@ -33,6 +39,9 @@ public class AudioClientUDP {
         micEnabled = !micEnabled;
         System.out.println(micEnabled ? " Micro on" : "🔇 Micro off");
         return micEnabled;
+    }
+    public interface ConnectionListener {
+        void onServerDisconnected(String type);
     }
 
     public void stop() {
@@ -112,25 +121,41 @@ public class AudioClientUDP {
     }
 
     private void startReceiving() {
-        new Thread(() -> {
-            byte[] buffer = new byte[BUFFER_SIZE * 2]; // Buffer nhận lớn hơn một chút
-            while (running) {
-                try {
-                    DatagramPacket pkt = new DatagramPacket(buffer, buffer.length);
-                    socket.receive(pkt);
-                    
-                    // Chỉ thêm vào buffer nếu là dữ liệu âm thanh, không phải heartbeat
-                    byte[] receivedData = Arrays.copyOf(pkt.getData(), pkt.getLength());
-                    if (!Arrays.equals(receivedData, HEARTBEAT_DATA)) {
-                        jitterBuffer.offer(receivedData);
-                    }
-                } catch (Exception e) {
-                    if (running) System.err.println("Lỗi nhận audio: " + e.getMessage());
+    new Thread(() -> {
+        byte[] buffer = new byte[BUFFER_SIZE * 2];
+        while (running) {
+            try {
+                DatagramPacket pkt = new DatagramPacket(buffer, buffer.length);
+                socket.receive(pkt);
+
+                byte[] receivedData = Arrays.copyOf(pkt.getData(), pkt.getLength());
+                if (!Arrays.equals(receivedData, HEARTBEAT_DATA)) {
+                    jitterBuffer.offer(receivedData);
                 }
+
+            } catch (SocketTimeoutException e) {
+                // timeout → bỏ qua
+            } catch (SocketException e) {
+                if (running) {
+                    System.err.println("⚠️ Mất kết nối tới Audio Server: " + e.getMessage());
+                    if (listener != null) listener.onServerDisconnected("AUDIO");
+                }
+                break;
+            } catch (IOException e) {
+                if (running) {
+                    System.err.println("⚠️ Lỗi I/O Audio: " + e.getMessage());
+                    if (listener != null) listener.onServerDisconnected("AUDIO");
+                }
+                break;
+            } catch (Exception e) {
+                if (running) e.printStackTrace();
             }
-             System.out.println("Luồng nhận audio đã dừng.");
-        }, "Audio-Receiver").start();
-    }
+        }
+        System.out.println("🔇 Luồng nhận audio đã dừng.");
+    }, "Audio-Receiver").start();
+}
+
+
 
     // 💡 SỬA LỖI: Luồng riêng để phát âm thanh từ Jitter Buffer
     private void startPlaying() {

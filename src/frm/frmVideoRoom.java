@@ -18,7 +18,10 @@ import java.awt.Image;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.EOFException;
+import java.io.IOException;
 import java.net.DatagramPacket;
+import java.net.SocketException;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Set;
@@ -53,6 +56,8 @@ public class frmVideoRoom extends javax.swing.JFrame {
     private volatile boolean capturing = false;        // luồng gửi frame chạy/đứng
     private volatile boolean isReleasingCam = false;   // chống release() 2 lần
     // trạng thái cam bên phía người khác: true=ON, false=OFF
+    private volatile boolean serverDisconnected = false;
+
     private final ConcurrentHashMap<String, Boolean> remoteCamOn = new ConcurrentHashMap<>();
     // UI
     private BufferedImage noCamImage;
@@ -109,7 +114,12 @@ public class frmVideoRoom extends javax.swing.JFrame {
             videoClient = new VideoClientUDP("192.168.1.2");
             audioClient = new AudioClientUDP("192.168.1.2");
             chatClient = new ChatClientTCP("192.168.1.2");
-
+            audioClient.setConnectionListener(type -> {
+                SwingUtilities.invokeLater(() -> handleServerDisconnect(type));
+            });
+            videoClient.setConnectionListener(type -> {
+                SwingUtilities.invokeLater(() -> handleServerDisconnect(type));
+            });
             // Gửi JOIN
             chatClient.sendMessage("JOIN:" + localClientID);
             chatClient.sendMessage(videoEnabled ? "CAM_ON:" + localClientID : "CAM_OFF:" + localClientID);
@@ -141,11 +151,9 @@ public class frmVideoRoom extends javax.swing.JFrame {
                         Thread.sleep(33);
                     }
                 } catch (Exception e) {
-                    e.printStackTrace();
+                    System.err.println("❌ Lỗi gửi video: " + e.getMessage());
                 }
             }).start();
-
-
             // Thread nhận video
             new Thread(() -> {
                 try {
@@ -168,16 +176,14 @@ public class frmVideoRoom extends javax.swing.JFrame {
                         if (img != null)
                             SwingUtilities.invokeLater(() -> updateVideoPanel(clientID, img));
                     }
-                } catch (Exception e) {
+                }catch (Exception e) {
                     e.printStackTrace();
                 }
             }).start();
-
-
             // Nhận tin chat & thông điệp
             new Thread(() -> {
                 try {
-                    while (true) {
+                    while (!serverDisconnected) {
                         String msg = chatClient.receiveMessage();
                         if (msg == null) continue;
                         if (msg.startsWith("JOINED:")) {
@@ -191,8 +197,9 @@ public class frmVideoRoom extends javax.swing.JFrame {
                                         ImageIO.write(resized, "jpg", baos);
                                         videoClient.sendFrame(baos.toByteArray(), localClientID);
                                     }
-                                } catch (Exception ex) {
+                                }catch (Exception ex) {
                                     ex.printStackTrace();
+                                    break;
                                 }
                             }else{
                                 String u = msg.substring(7).trim();
@@ -203,6 +210,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
                                 });
                             }
                         }
+                        if (serverDisconnected) break;
                         if (msg.startsWith("EXIT:")) {
                             String[] parts = msg.substring(5).split("\\|");
                             if (parts.length > 0) {
@@ -216,7 +224,6 @@ public class frmVideoRoom extends javax.swing.JFrame {
                             }
                             continue;
                         }
-
                         if (msg.startsWith("CAM_OFF:")) {
                             String user = msg.substring(8).trim();
                             remoteCamOn.put(user, false);
@@ -231,12 +238,20 @@ public class frmVideoRoom extends javax.swing.JFrame {
                         }
                         SwingUtilities.invokeLater(() -> txt_KhungChat.append(msg + "\n"));
                     }
+                } catch (IOException e) {
+                    if ("CHAT_SERVER_DISCONNECTED".equals(e.getMessage())) {
+                        System.err.println("⚠️ Mất kết nối TCP tới Chat Server");
+                        handleServerDisconnect("CHAT");
+                    } else {
+                        e.printStackTrace();
+                        handleServerDisconnect("CHAT");
+                    }
                 } catch (Exception e) {
                     e.printStackTrace();
+                    handleServerDisconnect("CHAT");
                 }
             }).start();
-
-        } catch (Exception e) {
+        }catch (Exception e) {
             e.printStackTrace();
         }
     }
@@ -352,6 +367,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
         btnEnd = new javax.swing.JButton();
         jLabel3 = new javax.swing.JLabel();
         txtRoomID = new javax.swing.JTextField();
+        jLabel4 = new javax.swing.JLabel();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
         addWindowListener(new java.awt.event.WindowAdapter() {
@@ -363,18 +379,24 @@ public class frmVideoRoom extends javax.swing.JFrame {
 
         videoPanelGrid.setBorder(javax.swing.BorderFactory.createLineBorder(new java.awt.Color(0, 0, 0)));
         videoPanelGrid.setCursor(new java.awt.Cursor(java.awt.Cursor.DEFAULT_CURSOR));
-        getContentPane().add(videoPanelGrid, new org.netbeans.lib.awtextra.AbsoluteConstraints(3, 35, 592, 419));
+        getContentPane().add(videoPanelGrid, new org.netbeans.lib.awtextra.AbsoluteConstraints(0, 40, 690, 419));
 
         jScrollPane1.setViewportView(list_ThanhVien);
 
-        getContentPane().add(jScrollPane1, new org.netbeans.lib.awtextra.AbsoluteConstraints(618, 41, 171, 190));
+        getContentPane().add(jScrollPane1, new org.netbeans.lib.awtextra.AbsoluteConstraints(700, 40, 171, 190));
 
         txt_KhungChat.setColumns(20);
         txt_KhungChat.setRows(5);
         jScrollPane2.setViewportView(txt_KhungChat);
 
-        getContentPane().add(jScrollPane2, new org.netbeans.lib.awtextra.AbsoluteConstraints(620, 260, 171, 199));
-        getContentPane().add(txtVanBan, new org.netbeans.lib.awtextra.AbsoluteConstraints(620, 460, 120, 40));
+        getContentPane().add(jScrollPane2, new org.netbeans.lib.awtextra.AbsoluteConstraints(700, 260, 171, 199));
+
+        txtVanBan.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                txtVanBanActionPerformed(evt);
+            }
+        });
+        getContentPane().add(txtVanBan, new org.netbeans.lib.awtextra.AbsoluteConstraints(700, 460, 120, 40));
 
         btnGui.setFont(new java.awt.Font("Segoe UI", 0, 10)); // NOI18N
         btnGui.setText("Gửi");
@@ -383,13 +405,13 @@ public class frmVideoRoom extends javax.swing.JFrame {
                 btnGuiActionPerformed(evt);
             }
         });
-        getContentPane().add(btnGui, new org.netbeans.lib.awtextra.AbsoluteConstraints(740, 460, 50, 40));
+        getContentPane().add(btnGui, new org.netbeans.lib.awtextra.AbsoluteConstraints(820, 460, 50, 40));
 
         jLabel1.setText("Danh sách TV");
-        getContentPane().add(jLabel1, new org.netbeans.lib.awtextra.AbsoluteConstraints(665, 19, 124, -1));
+        getContentPane().add(jLabel1, new org.netbeans.lib.awtextra.AbsoluteConstraints(740, 10, 124, -1));
 
         jLabel2.setText("Khung chat");
-        getContentPane().add(jLabel2, new org.netbeans.lib.awtextra.AbsoluteConstraints(674, 237, 71, -1));
+        getContentPane().add(jLabel2, new org.netbeans.lib.awtextra.AbsoluteConstraints(750, 240, 71, -1));
 
         btnMic.setText("Tắt Mic");
         btnMic.addActionListener(new java.awt.event.ActionListener() {
@@ -397,7 +419,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
                 btnMicActionPerformed(evt);
             }
         });
-        getContentPane().add(btnMic, new org.netbeans.lib.awtextra.AbsoluteConstraints(185, 489, -1, -1));
+        getContentPane().add(btnMic, new org.netbeans.lib.awtextra.AbsoluteConstraints(250, 480, -1, 40));
 
         btnVideo.setText("Tắt Video");
         btnVideo.addActionListener(new java.awt.event.ActionListener() {
@@ -405,7 +427,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
                 btnVideoActionPerformed(evt);
             }
         });
-        getContentPane().add(btnVideo, new org.netbeans.lib.awtextra.AbsoluteConstraints(340, 490, -1, -1));
+        getContentPane().add(btnVideo, new org.netbeans.lib.awtextra.AbsoluteConstraints(370, 480, -1, 40));
 
         btnEnd.setText("Kết thúc");
         btnEnd.addActionListener(new java.awt.event.ActionListener() {
@@ -413,11 +435,15 @@ public class frmVideoRoom extends javax.swing.JFrame {
                 btnEndActionPerformed(evt);
             }
         });
-        getContentPane().add(btnEnd, new org.netbeans.lib.awtextra.AbsoluteConstraints(522, 489, -1, -1));
+        getContentPane().add(btnEnd, new org.netbeans.lib.awtextra.AbsoluteConstraints(490, 480, -1, 40));
 
-        jLabel3.setText("RoomID");
-        getContentPane().add(jLabel3, new org.netbeans.lib.awtextra.AbsoluteConstraints(40, 470, -1, -1));
-        getContentPane().add(txtRoomID, new org.netbeans.lib.awtextra.AbsoluteConstraints(10, 490, 110, -1));
+        jLabel3.setText("Mã phòng");
+        getContentPane().add(jLabel3, new org.netbeans.lib.awtextra.AbsoluteConstraints(35, 470, 60, 20));
+        getContentPane().add(txtRoomID, new org.netbeans.lib.awtextra.AbsoluteConstraints(10, 500, 110, -1));
+
+        jLabel4.setFont(new java.awt.Font("Segoe UI", 1, 24)); // NOI18N
+        jLabel4.setText("MEETING");
+        getContentPane().add(jLabel4, new org.netbeans.lib.awtextra.AbsoluteConstraints(290, 10, -1, -1));
 
         pack();
     }// </editor-fold>//GEN-END:initComponents
@@ -427,6 +453,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
                 "Xác nhận", JOptionPane.YES_NO_OPTION);
         if (confirm == JOptionPane.YES_OPTION) {
             try {
+                serverDisconnected = true; 
                 capturing = false;
                 try { Thread.sleep(120); } catch (InterruptedException ignored) {}
                 safeReleaseWebcam();
@@ -457,6 +484,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
 
     private void formWindowClosing(java.awt.event.WindowEvent evt) {//GEN-FIRST:event_formWindowClosing
         try {
+            serverDisconnected = true;
             capturing = false;
             try { Thread.sleep(120); } catch (InterruptedException ignored) {}
             safeReleaseWebcam();
@@ -513,6 +541,19 @@ public class frmVideoRoom extends javax.swing.JFrame {
             }
         }
     }//GEN-LAST:event_btnMicActionPerformed
+
+    private void txtVanBanActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_txtVanBanActionPerformed
+        // 🔹 Khi nhấn Enter trong ô nhập tin nhắn => tự động gửi
+        txtVanBan.addKeyListener(new java.awt.event.KeyAdapter() {
+            @Override
+            public void keyPressed(java.awt.event.KeyEvent evt) {
+                if (evt.getKeyCode() == java.awt.event.KeyEvent.VK_ENTER) {
+                    evt.consume(); // chặn xuống dòng
+                    btnGuiActionPerformed(null); // gọi sự kiện gửi
+                }
+            }
+        });
+    }//GEN-LAST:event_txtVanBanActionPerformed
     // Hàm kiểm tra mic
     private boolean isMicAvailable() {
         try {
@@ -555,7 +596,37 @@ public class frmVideoRoom extends javax.swing.JFrame {
             return false;
         }
     }
+    private synchronized void handleServerDisconnect(String reason) {
+        if (serverDisconnected) return;
+        serverDisconnected = true;
+        System.err.println("⚠️ Server disconnected: " + reason);
 
+        new Thread(() -> {
+            try {
+                SwingUtilities.invokeAndWait(() -> {
+                    JOptionPane.showMessageDialog(
+                        this,
+                        "🔌 Mất kết nối tới máy chủ.\nỨng dụng sẽ quay lại màn hình chính.",
+                        "Mất kết nối",
+                        JOptionPane.ERROR_MESSAGE
+                    );
+                });
+
+                try { roomDao.markLeave(roomCode, currentUser.getId()); } catch (Exception ignored) {}
+                safeReleaseWebcam();
+                if (audioClient != null) audioClient.stop();
+                if (chatClient != null) chatClient.close();
+                if (videoClient != null) videoClient.close();
+
+                SwingUtilities.invokeLater(() -> {
+                    new frmMainMenu(currentUser).setVisible(true);
+                    dispose();
+                });
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }).start();
+    }
 
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
@@ -566,6 +637,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
     private javax.swing.JLabel jLabel1;
     private javax.swing.JLabel jLabel2;
     private javax.swing.JLabel jLabel3;
+    private javax.swing.JLabel jLabel4;
     private javax.swing.JScrollPane jScrollPane1;
     private javax.swing.JScrollPane jScrollPane2;
     private javax.swing.JList<String> list_ThanhVien;

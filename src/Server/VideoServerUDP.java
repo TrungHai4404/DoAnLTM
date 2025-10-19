@@ -19,7 +19,17 @@ public class VideoServerUDP {
         while (true) {
             DatagramPacket pkt = new DatagramPacket(buf, buf.length);
             socket.receive(pkt);
-            System.out.println("📩 Received " + pkt.getLength() + " bytes from " + pkt.getAddress());
+
+            String data = new String(pkt.getData(), 0, pkt.getLength()).trim();
+
+            // ✅ Kiểm tra gói PING
+            if (data.equalsIgnoreCase("PING_VIDEO")) {
+                byte[] pong = "PONG_VIDEO".getBytes();
+                DatagramPacket resp = new DatagramPacket(pong, pong.length, pkt.getAddress(), pkt.getPort());
+                socket.send(resp);
+                System.out.println("↩️ PONG_VIDEO sent to " + pkt.getAddress());
+                continue;
+            }
             // Lưu client vào danh sách nếu chưa có
             InetSocketAddress clientAddr = new InetSocketAddress(pkt.getAddress(), pkt.getPort());
             if (!clients.contains(clientAddr)) {

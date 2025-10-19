@@ -8,12 +8,17 @@ import org.opencv.calib3d.UsacParams;
 import Client.ChatClientTCP;
 import dao.UserDao;
 import dao.VideoRoomDao;
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.Socket;
 import javax.swing.JPasswordField;
+import Utils.NetworkUtils;
 public class frmMainMenu extends javax.swing.JFrame {
     private static final java.util.logging.Logger logger = java.util.logging.Logger.getLogger(frmMainMenu.class.getName());
     private final User currentUser; // giữ thông tin người dùng đang đăng nhập
+    NetworkUtils checkServer = new NetworkUtils();
     VideoRoomDao roomDao = new VideoRoomDao();
-    
+    String ServerIP = "192.168.1.2";
     public frmMainMenu(User user) {
         initComponents();
         this.currentUser = user;
@@ -203,29 +208,50 @@ public class frmMainMenu extends javax.swing.JFrame {
 
     private void btnThamGiaCuocGoiActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnThamGiaCuocGoiActionPerformed
         String roomCode = JOptionPane.showInputDialog(this, "Nhập mã phòng:");
-        if (roomCode != null && !roomCode.trim().isEmpty()) {
-            String roomID = roomDao.getRoomIdByCode(roomCode.trim());
-            if (roomID == null) {
-                JOptionPane.showMessageDialog(this, "Phòng không tồn tại!", "Thông báo", JOptionPane.WARNING_MESSAGE);
-                return;
-            }  
-            openVideoRoom(roomCode.trim(), false);
+        if (roomCode == null || roomCode.trim().isEmpty()) return;
+
+        if (!checkServer.checkAllServers(ServerIP)) {
+            JOptionPane.showMessageDialog(this,
+                "Không thể kết nối đến một hoặc nhiều máy chủ.\n" +
+                "Vui lòng kiểm tra lại kết nối mạng hoặc khởi động lại server.",
+                "Lỗi kết nối",
+                JOptionPane.ERROR_MESSAGE);
+            return;
         }
+
+        String roomID = roomDao.getRoomIdByCode(roomCode.trim());
+        if (roomID == null) {
+            JOptionPane.showMessageDialog(this, "Phòng không tồn tại!", "Thông báo", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        openVideoRoom(roomCode.trim(), false);
+        
     }//GEN-LAST:event_btnThamGiaCuocGoiActionPerformed
 
     private void btnTaoCuocGoiActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnTaoCuocGoiActionPerformed
+        if (!checkServer.checkAllServers(ServerIP)) {
+            JOptionPane.showMessageDialog(this,
+                "Không thể kết nối đến một hoặc nhiều máy chủ.\n" +
+                "Vui lòng kiểm tra lại kết nối mạng hoặc khởi động lại server.",
+                "Lỗi kết nối",
+                JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+        //Tạo phong
         try {
             // 1️⃣ Tạo phòng trong DB
-            String roomCode = roomDao.createRoom(currentUser.getId());
+            String roomCode = roomDao.createRoom(currentUser.getId());  
             if (roomCode == null) {
                 JOptionPane.showMessageDialog(this, "Không thể tạo phòng mới.", "Lỗi", JOptionPane.ERROR_MESSAGE);
                 return;
             }
             JOptionPane.showMessageDialog(this, "Tạo phòng thành công!\nMã phòng: " + roomCode);
             openVideoRoom(roomCode, true);
-        } catch (Exception ex) {
+        } catch (Exception ex) {    
             JOptionPane.showMessageDialog(this, "Lỗi khi tạo cuộc gọi: " + ex.getMessage(), "Lỗi", JOptionPane.ERROR_MESSAGE);
         }
+     
     }//GEN-LAST:event_btnTaoCuocGoiActionPerformed
 
     private void mItemThoatActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_mItemThoatActionPerformed
