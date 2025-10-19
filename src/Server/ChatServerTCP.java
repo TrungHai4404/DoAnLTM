@@ -8,13 +8,14 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import Server.MyConnection;
 import Utils.CryptoUtils;
+import dao.VideoRoomDao;
 
 public class ChatServerTCP {
     private int port = 6000;
     private CopyOnWriteArrayList<ClientHandler> clients = new CopyOnWriteArrayList<>();
     private ConcurrentHashMap<String, Boolean> cameraStates = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, ClientHandler> online = new ConcurrentHashMap<>();
-
+    private VideoRoomDao roomDao = new VideoRoomDao();
     public ChatServerTCP() throws Exception {
         ServerSocket serverSocket = new ServerSocket(port);
         System.out.println("💬 Chat TCP Server started on port " + port);
@@ -155,32 +156,13 @@ public class ChatServerTCP {
                 String roomCode = parts[1].trim();
 
                 broadcastEncrypted("EXIT:" + username + "|" + roomCode);
-                updateLeaveTimeByUsername(username, roomCode);
+                roomDao.markLeave(username, roomCode);
                 System.out.println("👋 " + username + " đã rời phòng " + roomCode);
             } catch (Exception e) {
                 e.printStackTrace();
             }
         }
-
-        private void updateLeaveTimeByUsername(String username, String roomCode) {
-            String sql = """
-                UPDATE RoomMembers
-                SET LeaveTime = GETDATE()
-                WHERE UserID = (SELECT UserID FROM Users WHERE Username = ?)
-                  AND RoomID = (SELECT RoomID FROM VideoRooms WHERE RoomCode = ?)
-                  AND LeaveTime IS NULL
-            """;
-
-            try (Connection conn = MyConnection.getConnection();
-                 PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setString(1, username);
-                ps.setString(2, roomCode);
-                ps.executeUpdate();
-                System.out.println("✅ Đã cập nhật thời gian rời phòng cho " + username);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
+    
     }
 
     public static void main(String[] args) throws Exception {

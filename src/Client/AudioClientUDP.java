@@ -10,7 +10,15 @@ import javax.swing.SwingUtilities;
 public class AudioClientUDP {
     private final int port = 5001;
     private final int BUFFER_SIZE = 512; // Kích thước buffer nhỏ hơn để giảm độ trễ
+    
     private static final byte[] HEARTBEAT_DATA = "HBEAT".getBytes();
+    private static final int HEARTBEAT_INTERVAL = 3000; // 3 giây gửi ping
+    private static final int HEARTBEAT_TIMEOUT = 9000;
+    
+    public interface ConnectionListener {
+        void onServerDisconnected(String type);
+    }
+    
     private ConnectionListener listener;
     public void setConnectionListener(ConnectionListener listener) {
         this.listener = listener;
@@ -30,8 +38,13 @@ public class AudioClientUDP {
     private final ConcurrentLinkedQueue<byte[]> jitterBuffer = new ConcurrentLinkedQueue<>();
     private final int JITTER_BUFFER_MIN_SIZE = 3; // Bắt đầu phát khi có ít nhất 3 gói
 
+    private volatile long lastResponseTime = System.currentTimeMillis();
+
     public AudioClientUDP(String serverIP) throws Exception {
-        socket = new DatagramSocket();
+        socket = new DatagramSocket();            // cổng ngẫu nhiên
+        socket.setSoTimeout(3000);                // để vòng nhận thoát ra kiểm tra timeout
+        socket.setReceiveBufferSize(1 << 20);
+        socket.setSendBufferSize(1 << 20);
         serverAddr = InetAddress.getByName(serverIP);
     }
 
@@ -40,10 +53,6 @@ public class AudioClientUDP {
         System.out.println(micEnabled ? " Micro on" : "🔇 Micro off");
         return micEnabled;
     }
-    public interface ConnectionListener {
-        void onServerDisconnected(String type);
-    }
-
     public void stop() {
         running = false; // Tín hiệu cho các luồng dừng lại
 
@@ -71,6 +80,8 @@ public class AudioClientUDP {
             startSending();
             startReceiving();
             startPlaying(); // 💡 SỬA LỖI: Bắt đầu luồng phát âm thanh riêng biệt
+            startHeartbeatSender();
+            startHeartbeatMonitor();
         } catch (LineUnavailableException e) {
             System.err.println("Khong the truy cap Micro va Loa");
             stop(); // Dọn dẹp nếu không khởi tạo được
@@ -98,7 +109,7 @@ public class AudioClientUDP {
             while (running) {
                 try {
                     if (!micEnabled) {
-                        Thread.sleep(200);
+                        Thread.sleep(40);
                         continue;
                     }else if (micEnabled) {
                         int bytesRead = mic.read(buffer, 0, buffer.length);
@@ -127,35 +138,28 @@ public class AudioClientUDP {
             try {
                 DatagramPacket pkt = new DatagramPacket(buffer, buffer.length);
                 socket.receive(pkt);
-
+                lastResponseTime = System.currentTimeMillis();
+                
                 byte[] receivedData = Arrays.copyOf(pkt.getData(), pkt.getLength());
-                if (!Arrays.equals(receivedData, HEARTBEAT_DATA)) {
-                    jitterBuffer.offer(receivedData);
+                if (Arrays.equals(receivedData, HEARTBEAT_DATA)) {
+                    continue;
                 }
-
+                jitterBuffer.offer(receivedData);
             } catch (SocketTimeoutException e) {
                 // timeout → bỏ qua
             } catch (SocketException e) {
-                if (running) {
-                    System.err.println("⚠️ Mất kết nối tới Audio Server: " + e.getMessage());
-                    if (listener != null) listener.onServerDisconnected("AUDIO");
-                }
+                 if (running) notifyDisconnect("AUDIO", e);
                 break;
             } catch (IOException e) {
-                if (running) {
-                    System.err.println("⚠️ Lỗi I/O Audio: " + e.getMessage());
-                    if (listener != null) listener.onServerDisconnected("AUDIO");
-                }
+                if (running) notifyDisconnect("AUDIO", e);
                 break;
             } catch (Exception e) {
                 if (running) e.printStackTrace();
             }
         }
-        System.out.println("🔇 Luồng nhận audio đã dừng.");
+        System.out.println("Luồng nhận audio đã dừng.");
     }, "Audio-Receiver").start();
 }
-
-
 
     // 💡 SỬA LỖI: Luồng riêng để phát âm thanh từ Jitter Buffer
     private void startPlaying() {
@@ -179,7 +183,40 @@ public class AudioClientUDP {
              System.out.println("Luồng phát audio đã dừng.");
         }, "Audio-Player").start();
     }
-
+    /** GỬI HEARTBEAT ĐỊNH KỲ (độc lập audio) */
+    private void startHeartbeatSender() {
+        new Thread(() -> {
+            while (running) {
+                try {
+                    DatagramPacket hb = new DatagramPacket(HEARTBEAT_DATA, HEARTBEAT_DATA.length, serverAddr, port);
+                    socket.send(hb);
+                    Thread.sleep(HEARTBEAT_INTERVAL);
+                } catch (Exception e) {
+                    if (running) System.err.println("⚠️ Lỗi gửi heartbeat: " + e.getMessage());
+                }
+            }
+        }, "Audio-HB-Send").start();
+    }
+    /** GIÁM SÁT: quá 9s không nhận → mất kết nối */
+    private void startHeartbeatMonitor() {
+        new Thread(() -> {
+            while (running) {
+                try {
+                    if (System.currentTimeMillis() - lastResponseTime > HEARTBEAT_TIMEOUT) {
+                        notifyDisconnect("AUDIO", null);
+                        break;
+                    }
+                    Thread.sleep(1000);
+                } catch (InterruptedException ignore) {}
+            }
+        }, "Audio-HB-Mon").start();
+    }
+    private void notifyDisconnect(String type, Exception e) {
+        System.err.println("🔌 Mất kết nối tới " + type + " server" +
+                (e != null ? ": " + e.getMessage() : ""));
+        if (listener != null)
+            SwingUtilities.invokeLater(() -> listener.onServerDisconnected(type));
+    }
     private AudioFormat getAudioFormat() {
         float sampleRate = 16000.0F; // 💡 TỐI ƯU: Dùng 16kHz, tốt hơn cho voice chat và tương thích rộng rãi
         int sampleSizeInBits = 16;
@@ -189,5 +226,4 @@ public class AudioClientUDP {
         return new AudioFormat(sampleRate, sampleSizeInBits, channels, signed, bigEndian);
     }
     
-
 }

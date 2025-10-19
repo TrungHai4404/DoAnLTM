@@ -2,28 +2,34 @@ package server;
 
 import java.io.IOException;
 import java.net.*;
+import java.util.Arrays;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 public class AudioServerUDP {
     private DatagramSocket socket;
     private int port = 5001;
-    private CopyOnWriteArrayList<InetSocketAddress> clients = new CopyOnWriteArrayList<>();
+    private static final byte[] HEARTBEAT = "HBEAT".getBytes();
+
+    private final CopyOnWriteArrayList<InetSocketAddress> clients = new CopyOnWriteArrayList<>();
     private final int BUFFER_SIZE = 1024;
 
     public AudioServerUDP() throws Exception {
         socket = new DatagramSocket(port);
-        System.out.println("🎧 Audio Server started on port " + port);
+        socket.setReceiveBufferSize(1 << 20);
+        socket.setSendBufferSize(1 << 20);
+        System.out.println("Audio Server started on port " + port);
 
-        byte[] buf = new byte[BUFFER_SIZE];
+        
 
         while (true) {
             try{
+                byte[] buf = new byte[BUFFER_SIZE];
                 DatagramPacket pkt = new DatagramPacket(buf, buf.length);
                 socket.receive(pkt);
-                String data = new String(pkt.getData(), 0, pkt.getLength()).trim();
-
+                
+                String dataP = new String(pkt.getData(), 0, pkt.getLength()).trim();
                 // ✅ Kiểm tra gói PING
-                if (data.equalsIgnoreCase("PING_AUDIO")) {
+                if (dataP.equalsIgnoreCase("PING_AUDIO")) {
                     byte[] pong = "PONG_AUDIO".getBytes();
                     DatagramPacket resp = new DatagramPacket(pong, pong.length, pkt.getAddress(), pkt.getPort());
                     socket.send(resp);
@@ -36,7 +42,15 @@ public class AudioServerUDP {
                     clients.add(clientAddr);
                     System.out.println("New audio client: " + clientAddr);
                 }
-
+                
+                byte[] data = Arrays.copyOf(pkt.getData(), pkt.getLength());
+                // ⚡ Xử lý Heartbeat
+                if (data.length == HEARTBEAT.length && Arrays.equals(data, HEARTBEAT)) {
+                    DatagramPacket echo = new DatagramPacket(data, data.length, pkt.getAddress(), pkt.getPort());
+                    socket.send(echo);
+                    // System.out.println("💓 Echo HBEAT -> " + sender);
+                    continue;
+                }
                 // Phát lại cho tất cả client khác
                 for (InetSocketAddress c : clients) {
                     if (!c.equals(clientAddr)) {
@@ -47,20 +61,16 @@ public class AudioServerUDP {
             }catch (SocketTimeoutException e) {
                 // bỏ qua
             } catch (IOException e) {
-                System.err.println("⚠️ Mất kết nối tới Audio Server: " + e.getMessage());
-                handleServerDisconnect("AUDIO");
-            }
-            
-            
-            
+                System.err.println("Mất kết nối tới Audio Server: " + e.getMessage());
+            }    
         }
     }
 
     public static void main(String[] args) throws Exception {
-        new AudioServerUDP();
-    }
-
-    private void handleServerDisconnect(String audio) {
-        throw new UnsupportedOperationException("Not supported yet."); // Generated from nbfs://nbhost/SystemFileSystem/Templates/Classes/Code/GeneratedMethodBody
+        try {
+            new AudioServerUDP();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }

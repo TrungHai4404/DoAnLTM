@@ -21,7 +21,15 @@ public class VideoServerUDP {
             socket.receive(pkt);
 
             String data = new String(pkt.getData(), 0, pkt.getLength()).trim();
-
+            // Kiểm tra nếu gói tin là heartbeat
+            if (new String(pkt.getData(), 0, pkt.getLength()).equals("PING")) {
+                // Trả lại gói heartbeat (echo) để client cập nhật lastResponseTime
+                DatagramPacket reply = new DatagramPacket(
+                    pkt.getData(), pkt.getLength(), pkt.getAddress(), pkt.getPort()
+                );
+                socket.send(reply);
+                continue; // bỏ qua không phát tán
+            }
             // ✅ Kiểm tra gói PING
             if (data.equalsIgnoreCase("PING_VIDEO")) {
                 byte[] pong = "PONG_VIDEO".getBytes();

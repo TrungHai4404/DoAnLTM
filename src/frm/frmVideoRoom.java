@@ -109,7 +109,6 @@ public class frmVideoRoom extends javax.swing.JFrame {
             btnMic.setText("None Micro");
             btnMic.setEnabled(false);
         }
-
         try {
             videoClient = new VideoClientUDP("192.168.1.2");
             audioClient = new AudioClientUDP("192.168.1.2");

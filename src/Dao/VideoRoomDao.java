@@ -5,9 +5,9 @@ import java.awt.List;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.UUID;
-
+import dao.UserDao;
 public class VideoRoomDao {
-
+    
     // Tạo phòng mới
     public String createRoom(String createdByUserID) {
         String roomCode = "ROOM-" + UUID.randomUUID().toString().substring(0, 6).toUpperCase();
@@ -72,27 +72,24 @@ public class VideoRoomDao {
 
 
     // Đánh dấu rời phòng
-    public void markLeave(String roomID, String userID) {
+    public void markLeave(String username, String roomCode) {
         String sql = """
-            UPDATE RoomMembers
-            SET LeaveTime = GETDATE()
-            WHERE RoomID = ? AND UserID = ? AND LeaveTime IS NULL
-        """;
+                UPDATE RoomMembers
+                SET LeaveTime = GETDATE()
+                WHERE UserID = (SELECT UserID FROM Users WHERE Username = ?)
+                  AND RoomID = (SELECT RoomID FROM VideoRooms WHERE RoomCode = ?)
+                  AND LeaveTime IS NULL
+            """;
 
-        try (Connection conn = MyConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-
-            ps.setObject(1, java.util.UUID.fromString(roomID));  // ✅ đúng kiểu UNIQUEIDENTIFIER
-            ps.setObject(2, java.util.UUID.fromString(userID));  // ✅ đúng kiểu UNIQUEIDENTIFIER
-
-            int rows = ps.executeUpdate();
-            System.out.println("✅ Cập nhật thời gian rời phòng thành công! (" + rows + " bản ghi)");
-        } catch (IllegalArgumentException e) {
-            System.err.println("❌ RoomID hoặc UserID không hợp lệ (không phải UUID).");
-            e.printStackTrace();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+            try (Connection conn = MyConnection.getConnection();
+                 PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setString(1, username);
+                ps.setString(2, roomCode);
+                ps.executeUpdate();
+                System.out.println("✅ Đã cập nhật thời gian rời phòng cho " + username);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
     }
 
 

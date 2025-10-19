@@ -10,6 +10,12 @@ public class VideoClientUDP {
     private InetAddress serverAddr;
     private int port = 5000;
     private ConnectionListener listener;
+    private static final byte[] HEARTBEAT_DATA = "PING".getBytes();
+    private static final int HEARTBEAT_INTERVAL = 3000; // 3 giây
+    private static final int HEARTBEAT_TIMEOUT = 9000;  // 9 giây không nhận → xem như mất kết nối
+    private volatile boolean running = true;
+    private long lastResponseTime = System.currentTimeMillis();
+
     public void setConnectionListener(ConnectionListener listener) {
         this.listener = listener;
     }
@@ -19,6 +25,8 @@ public class VideoClientUDP {
         socket.setSoTimeout(3000); // nhận không timeout
         socket.setReceiveBufferSize(1024 * 1024); // 1MB buffer nhận
         socket.setSendBufferSize(1024 * 1024);    // 1MB buffer gửi
+        startHeartbeatSender();
+        startHeartbeatMonitor();
     }
 
     /** Gửi frame kèm username (clientID) */
@@ -41,24 +49,53 @@ public class VideoClientUDP {
         try {
             DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
             socket.receive(packet);
+            lastResponseTime = System.currentTimeMillis();
+
             return packet;
 
         } catch (SocketTimeoutException e) {
             // Không nhận được gói → bỏ qua, tiếp tục vòng lặp
         } catch (SocketException e) {
-            System.err.println("⚠️ Mất kết nối tới Video Server: " + e.getMessage());
-            if (listener != null)
-                SwingUtilities.invokeLater(() -> listener.onServerDisconnected("VIDEO"));
+            notifyDisconnect("VIDEO", e);
         } catch (IOException e) {
-            System.err.println("⚠️ Lỗi I/O khi nhận frame: " + e.getMessage());
-            if (listener != null)
-                SwingUtilities.invokeLater(() -> listener.onServerDisconnected("VIDEO"));
-        } catch (Exception e) {
-            System.err.println("❌ Lỗi không xác định khi nhận frame: " + e.getMessage());
-        }
+            notifyDisconnect("VIDEO", e);
+        } 
         return null;
     }
+    private void startHeartbeatSender() {
+        new Thread(() -> {
+            while (running) {
+                try {
+                    DatagramPacket heartbeat = new DatagramPacket(
+                        HEARTBEAT_DATA, HEARTBEAT_DATA.length, serverAddr, port
+                    );
+                    socket.send(heartbeat);
+                    Thread.sleep(HEARTBEAT_INTERVAL);
+                } catch (Exception ignored) {}
+            }
+        }, "Video-Heartbeat-Sender").start();
+    }
 
+    private void startHeartbeatMonitor() {
+        new Thread(() -> {
+            while (running) {
+                try {
+                    if (System.currentTimeMillis() - lastResponseTime > HEARTBEAT_TIMEOUT) {
+                        notifyDisconnect("VIDEO", null);
+                        break;
+                    }
+                    Thread.sleep(2000);
+                } catch (InterruptedException ignored) {}
+            }
+        }, "Video-Heartbeat-Monitor").start();
+    }
+
+    private void notifyDisconnect(String type, Exception e) {
+        System.err.println("🔌 Mất kết nối tới " + type + " server" +
+                (e != null ? ": " + e.getMessage() : ""));
+        if (listener != null)
+            SwingUtilities.invokeLater(() -> listener.onServerDisconnected(type));
+    }
 
     public void close() {
         if (socket != null && !socket.isClosed()) {
