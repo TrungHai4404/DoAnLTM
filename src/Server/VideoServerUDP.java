@@ -10,9 +10,12 @@ public class VideoServerUDP {
     
     // Lưu địa chỉ client để phát video cho tất cả
     private CopyOnWriteArrayList<InetSocketAddress> clients = new CopyOnWriteArrayList<>();
+    private ExecutorService pool = Executors.newFixedThreadPool(10);
 
     public VideoServerUDP() throws Exception {
         socket = new DatagramSocket(port);
+        socket.setReceiveBufferSize(2 * 1024 * 1024);
+        socket.setSendBufferSize(2 * 1024 * 1024);
         System.out.println("Video UDP Server started on port " + port);
         byte[] buf = new byte[65536]; // buffer lớn
 
@@ -45,12 +48,19 @@ public class VideoServerUDP {
                 System.out.println("New client: " + clientAddr);
             }
             // Phát lại frame cho tất cả client (trừ client gửi)
+            byte[] datasend = Arrays.copyOf(pkt.getData(), pkt.getLength());
+
+            // broadcast tới các client khác
             for (InetSocketAddress c : clients) {
                 if (!c.equals(clientAddr)) {
-                    DatagramPacket sendPkt = new DatagramPacket(
-                        pkt.getData(), pkt.getLength(), c.getAddress(), c.getPort()
-                    );
-                    socket.send(sendPkt);
+                    pool.submit(() -> {
+                        try {
+                            DatagramPacket p = new DatagramPacket(datasend, datasend.length, c.getAddress(), c.getPort());
+                            socket.send(p);
+                        } catch (Exception e) {
+                            System.err.println("Lỗi gửi tới client " + c + ": " + e.getMessage());
+                        }
+                    });
                 }
             }
         }

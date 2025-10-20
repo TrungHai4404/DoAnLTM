@@ -10,6 +10,7 @@ public class VideoClientUDP {
     private InetAddress serverAddr;
     private int port = 5000;
     private ConnectionListener listener;
+    private static final int BUFFER_SIZE = 65536;
     private static final byte[] HEARTBEAT_DATA = "PING".getBytes();
     private static final int HEARTBEAT_INTERVAL = 3000; // 3 giây
     private static final int HEARTBEAT_TIMEOUT = 9000;  // 9 giây không nhận → xem như mất kết nối
@@ -24,8 +25,8 @@ public class VideoClientUDP {
         serverAddr = InetAddress.getByName(serverIP);
         socket = new DatagramSocket();
         socket.setSoTimeout(3000); // nhận không timeout
-        socket.setReceiveBufferSize(2 * 1024 * 1024); // 1MB buffer nhận
-        socket.setSendBufferSize(2 * 1024 * 1024);    // 1MB buffer gửi
+        socket.setReceiveBufferSize(2 * BUFFER_SIZE);
+        socket.setSendBufferSize(2 * BUFFER_SIZE);   
         startHeartbeatSender();
         startHeartbeatMonitor();
     }

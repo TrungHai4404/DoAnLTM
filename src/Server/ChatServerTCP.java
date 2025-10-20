@@ -18,7 +18,7 @@ public class ChatServerTCP {
     private VideoRoomDao roomDao = new VideoRoomDao();
     public ChatServerTCP() throws Exception {
         ServerSocket serverSocket = new ServerSocket(port);
-        System.out.println("💬 Chat TCP Server started on port " + port);
+        System.out.println("Chat TCP Server started on port " + port);
 
         while (true) {
             Socket socket = serverSocket.accept();
