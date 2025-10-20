@@ -3,6 +3,7 @@ package Client;
 import Client.AudioClientUDP.ConnectionListener;
 import java.io.IOException;
 import java.net.*;
+import java.nio.ByteBuffer;
 import javax.swing.SwingUtilities;
 
 public class VideoClientUDP {
@@ -10,6 +11,7 @@ public class VideoClientUDP {
     private InetAddress serverAddr;
     private int port = 5000;
     private ConnectionListener listener;
+    private static final int BUFFER_SIZE = 65536;
     private static final byte[] HEARTBEAT_DATA = "PING".getBytes();
     private static final int HEARTBEAT_INTERVAL = 3000; // 3 giây
     private static final int HEARTBEAT_TIMEOUT = 9000;  // 9 giây không nhận → xem như mất kết nối
@@ -24,21 +26,27 @@ public class VideoClientUDP {
         serverAddr = InetAddress.getByName(serverIP);
         socket = new DatagramSocket();
         socket.setSoTimeout(3000); // nhận không timeout
-        socket.setReceiveBufferSize(2 * 1024 * 1024); // 1MB buffer nhận
-        socket.setSendBufferSize(2 * 1024 * 1024);    // 1MB buffer gửi
+        socket.setReceiveBufferSize(2 * BUFFER_SIZE);
+        socket.setSendBufferSize(2 * BUFFER_SIZE);   
         startHeartbeatSender();
         startHeartbeatMonitor();
     }
 
-    /** Gửi frame kèm username (clientID) */
-    public void sendFrame(byte[] frameData, String clientID) {
+     /** Gửi frame có roomCode + clientID */
+    public void sendFrame(byte[] frameData, String clientID, String roomCode) {
         try {
-            byte[] idBytes = clientID.getBytes();
-            byte[] data = new byte[36 + frameData.length];
-            System.arraycopy(idBytes, 0, data, 0, Math.min(idBytes.length, 36));
-            System.arraycopy(frameData, 0, data, 36, frameData.length);
+            byte[] roomBytes = new byte[36];
+            byte[] idBytes = new byte[36];
 
-            DatagramPacket packet = new DatagramPacket(data, data.length, serverAddr, port);
+            System.arraycopy(roomCode.getBytes(), 0, roomBytes, 0, Math.min(roomCode.length(), 36));
+            System.arraycopy(clientID.getBytes(), 0, idBytes, 0, Math.min(clientID.length(), 36));
+
+            ByteBuffer buffer = ByteBuffer.allocate(roomBytes.length + idBytes.length + frameData.length);
+            buffer.put(roomBytes);
+            buffer.put(idBytes);
+            buffer.put(frameData);
+
+            DatagramPacket packet = new DatagramPacket(buffer.array(), buffer.position(), serverAddr, port);
             socket.send(packet);
         } catch (Exception e) {
             System.err.println("Gửi frame thất bại: " + e.getMessage());

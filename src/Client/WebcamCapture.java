@@ -12,10 +12,10 @@ import java.util.Arrays;
 public class WebcamCapture {
     private VideoCapture camera;
     private boolean available = false;
-    private static final int FRAME_WIDTH = 1280; //1280 - 640
-    private static final int FRAME_HEIGHT = 720; //720 - 480
+    private static final int FRAME_WIDTH = 1280; //1280 - 640 - 320
+    private static final int FRAME_HEIGHT = 720; //720 - 480 - 240
     private static final int MAX_RETRY = 8;
-    private static final int RETRY_DELAY_MS = 100;
+    private static final int RETRY_DELAY_MS = 60;
 
     public WebcamCapture() {
         try {
@@ -42,7 +42,7 @@ public class WebcamCapture {
 
             camera.set(Videoio.CAP_PROP_FRAME_WIDTH, FRAME_WIDTH);
             camera.set(Videoio.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT);
-            camera.set(Videoio.CAP_PROP_FPS, 30);
+            camera.set(Videoio.CAP_PROP_FPS, 15);
 
             // 🧩 Đọc thử khung đầu tiên
             Mat test = new Mat();
@@ -55,7 +55,7 @@ public class WebcamCapture {
             }
 
             available = true;
-            System.out.println("Webcam init successful (" + FRAME_WIDTH + "x" + FRAME_HEIGHT + " @30fps)");
+            System.out.println("Webcam init successful (" + FRAME_WIDTH + "x" + FRAME_HEIGHT + " 15fps)");
             test.release();
 
         } catch (Exception e) {

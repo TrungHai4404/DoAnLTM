@@ -6,6 +6,7 @@ import javax.swing.SwingUtilities;
 import model.User;
 import org.opencv.calib3d.UsacParams;
 import Client.ChatClientTCP;
+import Client.RoomSession;
 import dao.UserDao;
 import dao.VideoRoomDao;
 import java.io.IOException;
@@ -18,7 +19,7 @@ public class frmMainMenu extends javax.swing.JFrame {
     private final User currentUser; // giữ thông tin người dùng đang đăng nhập
     NetworkUtils checkServer = new NetworkUtils();
     VideoRoomDao roomDao = new VideoRoomDao();
-    String ServerIP = "192.168.57.172";
+    String ServerIP = "192.168.1.3";
     public frmMainMenu(User user) {
         initComponents();
         setLocationRelativeTo(null); 
@@ -32,7 +33,7 @@ public class frmMainMenu extends javax.swing.JFrame {
         try {
             frmVideoRoom videoRoom = new frmVideoRoom(roomCode, isHost, currentUser);
             videoRoom.setVisible(true);
-            this.dispose(); // đóng menu chính
+            //this.dispose(); // đóng menu chính
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(this, "Lỗi mở phòng: " + ex.getMessage(), "Lỗi", JOptionPane.ERROR_MESSAGE);
             ex.printStackTrace();
@@ -222,9 +223,8 @@ public class frmMainMenu extends javax.swing.JFrame {
             JOptionPane.showMessageDialog(this, "Phòng không tồn tại!", "Thông báo", JOptionPane.WARNING_MESSAGE);
             return;
         }
-
-        openVideoRoom(roomCode.trim(), false);
-        
+        RoomSession session = new RoomSession(roomCode.trim(), false, currentUser);
+        session.start();  // ✅ Mỗi phòng chạy trong luồng riêng
     }//GEN-LAST:event_btnThamGiaCuocGoiActionPerformed
 
     private void btnTaoCuocGoiActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnTaoCuocGoiActionPerformed
@@ -245,7 +245,8 @@ public class frmMainMenu extends javax.swing.JFrame {
                 return;
             }
             JOptionPane.showMessageDialog(this, "Tạo phòng thành công!\nMã phòng: " + roomCode);
-            openVideoRoom(roomCode, true);
+            RoomSession session = new RoomSession(roomCode.trim(), false, currentUser);
+            session.start();  // ✅ Mỗi phòng chạy trong luồng riêng
         } catch (Exception ex) {    
             JOptionPane.showMessageDialog(this, "Lỗi khi tạo cuộc gọi: " + ex.getMessage(), "Lỗi", JOptionPane.ERROR_MESSAGE);
         }
