@@ -79,12 +79,4 @@ public class AudioServerUDP {
             }    
         }
     }
-
-    public static void main(String[] args) throws Exception {
-        try {
-            new AudioServerUDP();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
 }

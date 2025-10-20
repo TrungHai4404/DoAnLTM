@@ -197,8 +197,4 @@ public class ChatServerTCP {
             }
         }
     }
-
-    public static void main(String[] args) throws Exception {
-        new ChatServerTCP();
-    }
 }
