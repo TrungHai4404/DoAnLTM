@@ -72,7 +72,7 @@ public class VideoRoomDao {
 
 
     // Đánh dấu rời phòng
-    public void markLeave(String username, String roomCode) {
+    public void markLeave(String username, String roomCode) throws SQLException {
         String sql = """
                 UPDATE RoomMembers
                 SET LeaveTime = GETDATE()
@@ -80,16 +80,13 @@ public class VideoRoomDao {
                   AND RoomID = (SELECT RoomID FROM VideoRooms WHERE RoomCode = ?)
                   AND LeaveTime IS NULL
             """;
-
-            try (Connection conn = MyConnection.getConnection();
-                 PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setString(1, username);
-                ps.setString(2, roomCode);
-                ps.executeUpdate();
-                System.out.println("✅ Đã cập nhật thời gian rời phòng cho " + username);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
+        Connection conn = MyConnection.getConnection();
+        PreparedStatement ps = conn.prepareStatement(sql); 
+        ps.setString(1, username);
+        ps.setString(2, roomCode);
+        ps.executeUpdate();
+        System.out.println("✅ Đã cập nhật thời gian rời phòng cho " + username);
+             
     }
 
 

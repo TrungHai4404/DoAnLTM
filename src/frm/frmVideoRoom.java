@@ -137,7 +137,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
             audioClient.setConnectionListener(type -> { SwingUtilities.invokeLater(() -> handleServerDisconnect(type));});
             videoClient.setConnectionListener(type -> { SwingUtilities.invokeLater(() -> handleServerDisconnect(type));});
             // Gửi thông điệp JOIN
-            chatClient.sendMessage("JOIN:" + localClientID);
+            chatClient.sendMessage("JOIN:" + localClientID + "|" + roomCode);
             chatClient.sendMessage(videoEnabled ? "CAM_ON:" + localClientID : "CAM_OFF:" + localClientID);
 
             audioClient.start();

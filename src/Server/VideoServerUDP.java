@@ -53,7 +53,7 @@ public class VideoServerUDP {
             // Thêm client vào phòng nếu chưa có
             if (!roomClients.get(roomCode).contains(clientAddr)) {
                 roomClients.get(roomCode).add(clientAddr);
-                System.out.println("🧑‍💻 New client in room [" + roomCode + "]: " + clientAddr);
+                System.out.println("New client in room [" + roomCode + "]: " + clientAddr);
             }
             // Phát lại frame cho tất cả client (trừ client gửi)
             CopyOnWriteArrayList<InetSocketAddress> targets = roomClients.get(roomCode);
