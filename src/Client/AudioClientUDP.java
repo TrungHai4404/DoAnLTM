@@ -5,6 +5,7 @@ import javax.sound.sampled.*;
 import java.net.*;
 import java.util.Arrays;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
 
 public class AudioClientUDP {
@@ -26,7 +27,9 @@ public class AudioClientUDP {
     public void setConnectionListener(ConnectionListener listener) {
         this.listener = listener;
     }
-
+    public String getClientID() { // Thêm hàm này để debug
+        return this.clientID;
+    }
     private DatagramSocket socket;
     private InetAddress serverAddr;
 
@@ -52,15 +55,65 @@ public class AudioClientUDP {
         socket.setSendBufferSize(1 << 20);
         serverAddr = InetAddress.getByName(serverIP);
     }
-
+    // Yêu cầu bật mic
+    private boolean enableMic() {
+        if (GlobalMicController.getInstance().requestMicAccess(this)) {
+            // Được cấp quyền, bắt đầu mở và đọc micro
+            try {
+                if (mic == null || !mic.isOpen()) {
+                    initMic(); // Hàm riêng để khởi tạo chỉ mic
+                }
+                micEnabled = true;
+                System.out.println(clientID + ": Micro is now ON.");
+                return true;
+            } catch (LineUnavailableException e) {
+                System.err.println("Lỗi: Không thể mở mic dù đã được cấp quyền.");
+                GlobalMicController.getInstance().releaseMicAccess(this); // Trả lại quyền
+                return false;
+            }
+        } else {
+            // Không được cấp quyền, thông báo cho người dùng
+            SwingUtilities.invokeLater(() -> {
+                JOptionPane.showMessageDialog(null, 
+                    "Micro đang được sử dụng ở một phòng khác!", 
+                    "Xung đột Micro", 
+                    JOptionPane.WARNING_MESSAGE);
+            });
+            micEnabled = false; // Đảm bảo trạng thái là tắt
+            return false;
+        }
+    }
+    // Giải phóng mic
+    private void disableMic() {
+        GlobalMicController.getInstance().releaseMicAccess(this);
+        if (mic != null && mic.isOpen()) {
+            mic.stop();
+            mic.close();
+            System.out.println(clientID + ": Mic resource released.");
+        }
+        micEnabled = false;
+        System.out.println(clientID + ": Micro is now OFF.");
+    }
+    
     public boolean toggleMic() {
         micEnabled = !micEnabled;
         System.out.println(micEnabled ? " Micro on" : "🔇 Micro off");
         return micEnabled;
     }
+    // Tách hàm khởi tạo mic để gọi khi cần
+    private void initMic() throws LineUnavailableException {
+        AudioFormat format = getAudioFormat();
+        DataLine.Info micInfo = new DataLine.Info(TargetDataLine.class, format);
+        if (!AudioSystem.isLineSupported(micInfo)) {
+            throw new LineUnavailableException("Mic line not supported");
+        }
+        mic = (TargetDataLine) AudioSystem.getLine(micInfo);
+        mic.open(format, BUFFER_SIZE * 2);
+        mic.start();
+    }
     public void stop() {
         running = false; // Tín hiệu cho các luồng dừng lại
-
+        disableMic(); // đóng phòng là giải phóng mic
         // 💡 SỬA LỖI: Đóng và giải phóng tài nguyên mic và loa
         if (mic != null && mic.isOpen()) {
             mic.stop();
@@ -95,17 +148,14 @@ public class AudioClientUDP {
     
     private void initAudioLines() throws LineUnavailableException {
         AudioFormat format = getAudioFormat();
-        // Khởi tạo Mic
-        DataLine.Info micInfo = new DataLine.Info(TargetDataLine.class, format);
-        mic = (TargetDataLine) AudioSystem.getLine(micInfo);
-        mic.open(format, BUFFER_SIZE * 2);
-        mic.start();
-
         // Khởi tạo Loa
         DataLine.Info speakerInfo = new DataLine.Info(SourceDataLine.class, format);
         speakers = (SourceDataLine) AudioSystem.getLine(speakerInfo);
         speakers.open(format, BUFFER_SIZE * 4); // Buffer loa lớn hơn một chút
         speakers.start();
+        
+        //Mặc định tắt mic khi vào phòng
+        micEnabled = false;
     }
 
     private void startSending() {
@@ -116,7 +166,7 @@ public class AudioClientUDP {
                     if (!micEnabled) {
                         Thread.sleep(40);
                         continue;
-                    }else if (micEnabled) {
+                    }else if (micEnabled && mic != null && mic.isOpen()) {
                         int bytesRead = mic.read(buffer, 0, buffer.length);
                         if (bytesRead > 0) {
                             sendAudio(Arrays.copyOf(buffer, bytesRead));

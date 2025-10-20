@@ -128,6 +128,9 @@ public class frmVideoRoom extends javax.swing.JFrame {
         if (!micAvailable) {
             micEnabled = false;
             btnMic.setText("Bật Mic");
+        }else{
+            micEnabled = false;
+            btnMic.setText("Bật Mic");
         }
         try {
             videoClient = new VideoClientUDP(ServerIP);
