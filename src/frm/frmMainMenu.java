@@ -18,9 +18,10 @@ public class frmMainMenu extends javax.swing.JFrame {
     private final User currentUser; // giữ thông tin người dùng đang đăng nhập
     NetworkUtils checkServer = new NetworkUtils();
     VideoRoomDao roomDao = new VideoRoomDao();
-    String ServerIP = "192.168.1.2";
+    String ServerIP = "10.12.194.184";
     public frmMainMenu(User user) {
         initComponents();
+        setLocationRelativeTo(null); 
         this.currentUser = user;
         txtUsername.setText(user.getUsername().toString());
         txtFullname.setText(user.getFullName().toString());

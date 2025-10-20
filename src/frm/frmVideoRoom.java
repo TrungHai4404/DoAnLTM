@@ -52,7 +52,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
     private String localClientID;
     private boolean videoEnabled = true;
     private boolean micEnabled = true;
-
+    private String ServerIP = "10.12.194.184";
     // Networking
     private VideoClientUDP videoClient;
     private ChatClientTCP chatClient;
@@ -82,6 +82,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
         //Cap nhat DB
         roomDao.addMember(roomCode, currentUser.getId());
         initComponents();
+        setLocationRelativeTo(null); 
         txtRoomID.setText(roomCode);
         txtRoomID.setEditable(false);
         loadMembers();
@@ -92,7 +93,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
     }
     private void initNetworking() {
         videoPanelGrid.setLayout(new FlowLayout(FlowLayout.LEFT, 5, 5));
-        noCamImage = createNoCamImage(160, 120, "Camera Off");
+        noCamImage = createNoCamImage(180, 120, "Camera Off");
 
         boolean webcamAvailable = true;
         try {
@@ -114,9 +115,9 @@ public class frmVideoRoom extends javax.swing.JFrame {
             btnMic.setEnabled(false);
         }
         try {
-            videoClient = new VideoClientUDP("192.168.1.2");
-            audioClient = new AudioClientUDP("192.168.1.2");
-            chatClient = new ChatClientTCP("192.168.1.2");
+            videoClient = new VideoClientUDP(ServerIP);
+            audioClient = new AudioClientUDP(ServerIP);
+            chatClient = new ChatClientTCP(ServerIP);
             //Kiểm tra kết nối đến server UDP
             audioClient.setConnectionListener(type -> { SwingUtilities.invokeLater(() -> handleServerDisconnect(type));});
             videoClient.setConnectionListener(type -> { SwingUtilities.invokeLater(() -> handleServerDisconnect(type));});
@@ -142,7 +143,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
                             if (img == null) continue;
 
                             // ✅ Resize khung hình (chỉ resize khi cần)
-                            BufferedImage resized = resizeFrame(img, 160, 120);
+                            BufferedImage resized = resizeFrame(img, 180, 120);
 
                             // ✅ Nén JPEG với chất lượng cao nhưng không quá nặng
                             ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -251,7 +252,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
                                     byte[] frameData = webcam.captureFrame();
                                     if (frameData != null) {
                                         BufferedImage img = ImageIO.read(new ByteArrayInputStream(frameData));
-                                        BufferedImage resized = resizeFrame(img, 160, 120);
+                                        BufferedImage resized = resizeFrame(img, 180, 120);
                                         ByteArrayOutputStream baos = new ByteArrayOutputStream();
                                         ImageIO.write(resized, "jpg", baos);
                                         videoClient.sendFrame(baos.toByteArray(), localClientID);
@@ -338,11 +339,11 @@ public class frmVideoRoom extends javax.swing.JFrame {
     // === Hàm cập nhật khung hình video ===
     private synchronized void updateVideoPanel(String clientID, BufferedImage img) {
         JLabel label = videoPanels.get(clientID);
-        noCamImage = createNoCamImage(160, 120, "Camera Off");
+        noCamImage = createNoCamImage(180, 120, "Camera Off");
         if (label == null) {
             // 🧩 Tạo JLabel mới cho client
             label = new JLabel("Đang kết nối...", SwingConstants.CENTER);
-            label.setPreferredSize(new Dimension(160, 120));
+            label.setPreferredSize(new Dimension(180, 120));
             label.setOpaque(true);
             label.setBackground(Color.BLACK);
             label.setForeground(Color.WHITE);
@@ -480,18 +481,14 @@ public class frmVideoRoom extends javax.swing.JFrame {
         jPanel1Layout.setHorizontalGroup(
             jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(jPanel1Layout.createSequentialGroup()
+                .addContainerGap()
                 .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING)
+                    .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 222, javax.swing.GroupLayout.PREFERRED_SIZE)
                     .addGroup(jPanel1Layout.createSequentialGroup()
-                        .addGap(4, 4, 4)
-                        .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 222, javax.swing.GroupLayout.PREFERRED_SIZE))
-                    .addGroup(jPanel1Layout.createSequentialGroup()
-                        .addContainerGap()
-                        .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING)
-                            .addGroup(jPanel1Layout.createSequentialGroup()
-                                .addComponent(txtVanBan, javax.swing.GroupLayout.PREFERRED_SIZE, 157, javax.swing.GroupLayout.PREFERRED_SIZE)
-                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                                .addComponent(btnGui, javax.swing.GroupLayout.PREFERRED_SIZE, 57, javax.swing.GroupLayout.PREFERRED_SIZE))
-                            .addComponent(jScrollPane2, javax.swing.GroupLayout.PREFERRED_SIZE, 220, javax.swing.GroupLayout.PREFERRED_SIZE))))
+                        .addComponent(txtVanBan, javax.swing.GroupLayout.PREFERRED_SIZE, 157, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addComponent(btnGui, javax.swing.GroupLayout.PREFERRED_SIZE, 57, javax.swing.GroupLayout.PREFERRED_SIZE))
+                    .addComponent(jScrollPane2, javax.swing.GroupLayout.PREFERRED_SIZE, 220, javax.swing.GroupLayout.PREFERRED_SIZE))
                 .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
             .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel1Layout.createSequentialGroup()
                 .addGap(0, 0, Short.MAX_VALUE)
@@ -618,7 +615,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
         jPanel3Layout.setVerticalGroup(
             jPanel3Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(jPanel3Layout.createSequentialGroup()
-                .addComponent(videoPanelGrid, javax.swing.GroupLayout.DEFAULT_SIZE, 421, Short.MAX_VALUE)
+                .addComponent(videoPanelGrid, javax.swing.GroupLayout.DEFAULT_SIZE, 380, Short.MAX_VALUE)
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addComponent(jPanel5, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                 .addGap(18, 18, 18))
@@ -693,7 +690,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
                 String exitMsg = "EXIT:" + localClientID+ "|" + roomCode;
                 chatClient.sendMessage(exitMsg);
             }            
-            noCamImage = createNoCamImage(160, 120, "Camera Off");
+            noCamImage = createNoCamImage(180, 120, "Camera Off");
             updateVideoPanel(localClientID, noCamImage);
             audioClient.stop();
             SwingUtilities.invokeLater(() -> {

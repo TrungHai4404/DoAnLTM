@@ -24,6 +24,7 @@ public class frmRegister extends javax.swing.JFrame {
      */
     public frmRegister() {
         initComponents();
+        setLocationRelativeTo(null); 
     }
 
     /**
