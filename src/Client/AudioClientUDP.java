@@ -38,7 +38,7 @@ public class AudioClientUDP {
     private SourceDataLine speakers;
 
     private volatile boolean running = true;
-    private volatile boolean micEnabled = true;
+    private volatile boolean micEnabled = false;
 
     // 💡 TỐI ƯU: Jitter buffer
     private final ConcurrentLinkedQueue<byte[]> jitterBuffer = new ConcurrentLinkedQueue<>();
@@ -96,9 +96,15 @@ public class AudioClientUDP {
     }
     
     public boolean toggleMic() {
-        micEnabled = !micEnabled;
-        System.out.println(micEnabled ? " Micro on" : "🔇 Micro off");
-        return micEnabled;
+        if (micEnabled) { // Nếu đang bật -> thì TẮT
+            disableMic();
+            System.out.println("Bat Mic");
+            return false;
+        } else { // Nếu đang tắt -> thì cố gắng BẬT
+            // enableMic() sẽ tự xử lý việc xin quyền và trả về true/false
+            System.out.println("Tat Mic");
+            return enableMic();
+        }
     }
     // Tách hàm khởi tạo mic để gọi khi cần
     private void initMic() throws LineUnavailableException {
@@ -114,12 +120,7 @@ public class AudioClientUDP {
     public void stop() {
         running = false; // Tín hiệu cho các luồng dừng lại
         disableMic(); // đóng phòng là giải phóng mic
-        // 💡 SỬA LỖI: Đóng và giải phóng tài nguyên mic và loa
-        if (mic != null && mic.isOpen()) {
-            mic.stop();
-            mic.close();
-            System.out.println("Mic release.");
-        }
+        
         if (speakers != null && speakers.isOpen()) {
             speakers.stop();
             speakers.close();

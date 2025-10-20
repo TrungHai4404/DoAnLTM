@@ -759,7 +759,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
     // Hàm kiểm tra mic
     private boolean isMicAvailable() {
         try {
-            AudioFormat format = new AudioFormat(44100.0F, 16, 1, true, false);
+            AudioFormat format = new AudioFormat(16000.0F, 16, 1, true, false);
             DataLine.Info info = new DataLine.Info(TargetDataLine.class, format);
             if (!AudioSystem.isLineSupported(info)) {
                 return false;
