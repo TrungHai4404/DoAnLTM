@@ -198,10 +198,13 @@ public class frmVideoRoom extends javax.swing.JFrame {
                         }
 
                         byte[] data = Arrays.copyOf(pkt.getData(), pkt.getLength());
-                        if (data.length <= 36) continue;
+                        if (data.length <= 72) continue;
 
-                        // 🧩 Lấy clientID (người gửi)
-                        String clientID = new String(Arrays.copyOfRange(data, 0, 36)).trim();
+                        // 🧩 Tách roomCode và clientID
+                        String roomCodeFrame = new String(Arrays.copyOfRange(data, 0, 36)).trim();
+                        String clientID = new String(Arrays.copyOfRange(data, 36, 72)).trim();
+                        //Bỏ qua frame cùng phòng
+                        if (!roomCodeFrame.equals(this.roomCode)) continue;
 
                         // Nếu user tắt cam thì bỏ qua frame
                         if (!remoteCamOn.getOrDefault(clientID, true)) {
@@ -209,7 +212,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
                         }
 
                         // 🧩 Giải mã khung hình
-                        byte[] frameBytes = Arrays.copyOfRange(data, 36, data.length);
+                        byte[] frameBytes = Arrays.copyOfRange(data, 72, data.length);
                         try (ByteArrayInputStream bais = new ByteArrayInputStream(frameBytes)) {
                             BufferedImage img = ImageIO.read(bais);
                             if (img != null) {
@@ -226,7 +229,6 @@ public class frmVideoRoom extends javax.swing.JFrame {
                             frameCount = 0;
                             lastFpsCheck = System.currentTimeMillis();
                         }
-
                         // Điều chỉnh tốc độ nhận cho mượt hơn
                         long delta = System.currentTimeMillis() - lastFrameTime;
                         if (delta < 30) Thread.sleep(30 - delta);

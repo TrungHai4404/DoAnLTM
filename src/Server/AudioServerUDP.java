@@ -43,7 +43,6 @@ public class AudioServerUDP {
                 if (data.length == HEARTBEAT.length && Arrays.equals(data, HEARTBEAT)) {
                     DatagramPacket echo = new DatagramPacket(data, data.length, pkt.getAddress(), pkt.getPort());
                     socket.send(echo);
-                    // System.out.println("💓 Echo HBEAT -> " + sender);
                     continue;
                 }
                 // Tách dữ liệu

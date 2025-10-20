@@ -155,36 +155,45 @@ public class AudioClientUDP {
     }
 
     private void startReceiving() {
-    new Thread(() -> {
-        byte[] buffer = new byte[BUFFER_SIZE * 2];
-        while (running) {
-            try {
-                DatagramPacket pkt = new DatagramPacket(buffer, buffer.length);
-                socket.receive(pkt);
-                lastResponseTime = System.currentTimeMillis();
-                
-                byte[] receivedData = Arrays.copyOf(pkt.getData(), pkt.getLength());
-                if (Arrays.equals(receivedData, HEARTBEAT_DATA)) {
-                    continue;
-                }
-                jitterBuffer.offer(receivedData);
-            } catch (SocketTimeoutException e) {
-                // timeout → bỏ qua
-            } catch (SocketException e) {
-                if (!running)
+        new Thread(() -> {
+            byte[] buffer = new byte[BUFFER_SIZE * 2];
+            while (running) {
+                try {
+                    DatagramPacket pkt = new DatagramPacket(buffer, buffer.length);
+                    socket.receive(pkt);
+                    lastResponseTime = System.currentTimeMillis();
+
+                    byte[] receivedData = Arrays.copyOf(pkt.getData(), pkt.getLength());
+                    if (Arrays.equals(receivedData, HEARTBEAT_DATA)) {
+                        continue;
+                    }
+                    if (receivedData.length <= 72) continue;
+                    // 🧩 Tách header
+                    String roomCodeFrame = new String(Arrays.copyOfRange(receivedData, 0, 36)).trim();
+                    String senderID = new String(Arrays.copyOfRange(receivedData, 36, 72)).trim();
+                    byte[] audioData = Arrays.copyOfRange(receivedData, 72, receivedData.length);
+
+                    if (!roomCodeFrame.equals(this.roomCode)) continue;
+                    if (audioData.length > 0) {
+                        jitterBuffer.offer(audioData);
+                    }
+                } catch (SocketTimeoutException e) {
+                    // timeout → bỏ qua
+                } catch (SocketException e) {
+                    if (!running)
+                        break;
+                    notifyDisconnect("AUDIO", e);
                     break;
-                notifyDisconnect("AUDIO", e);
-                break;
-            } catch (IOException e) {
-                if (running) notifyDisconnect("AUDIO", e);
-                break;
-            } catch (Exception e) {
-                if (running) e.printStackTrace();
+                } catch (IOException e) {
+                    if (running) notifyDisconnect("AUDIO", e);
+                    break;
+                } catch (Exception e) {
+                    if (running) e.printStackTrace();
+                }
             }
-        }
-        System.out.println("Luồng nhận audio đã dừng.");
-    }, "Audio-Receiver").start();
-}
+            System.out.println("Luồng nhận audio đã dừng.");
+        }, "Audio-Receiver").start();
+    }
 
     // 💡 SỬA LỖI: Luồng riêng để phát âm thanh từ Jitter Buffer
     private void startPlaying() {
