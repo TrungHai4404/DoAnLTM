@@ -131,7 +131,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
         }
         try {
             videoClient = new VideoClientUDP(ServerIP);
-            audioClient = new AudioClientUDP(ServerIP);
+            audioClient = new AudioClientUDP(ServerIP,roomCode,localClientID);
             chatClient = new ChatClientTCP(ServerIP);
             //Kiểm tra kết nối đến server UDP
             audioClient.setConnectionListener(type -> { SwingUtilities.invokeLater(() -> handleServerDisconnect(type));});
@@ -169,7 +169,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
                             writer.write(null, new IIOImage(resized, null, null), param);
                             writer.dispose();
 
-                            videoClient.sendFrame(baos.toByteArray(), localClientID);
+                            videoClient.sendFrame(baos.toByteArray(), localClientID,roomCode);
                             SwingUtilities.invokeLater(() -> updateVideoPanel(localClientID, resized));
                         }
                         // ✅ Giữ tốc độ khung hình ~30fps
@@ -270,7 +270,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
                                         BufferedImage resized = resizeFrame(img, 180, 120);
                                         ByteArrayOutputStream baos = new ByteArrayOutputStream();
                                         ImageIO.write(resized, "jpg", baos);
-                                        videoClient.sendFrame(baos.toByteArray(), localClientID);
+                                        videoClient.sendFrame(baos.toByteArray(), localClientID,roomCode);
                                         Thread.sleep(40);
                                     }
                                 } catch (Exception ignore) {}

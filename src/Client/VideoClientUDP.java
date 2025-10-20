@@ -3,6 +3,7 @@ package Client;
 import Client.AudioClientUDP.ConnectionListener;
 import java.io.IOException;
 import java.net.*;
+import java.nio.ByteBuffer;
 import javax.swing.SwingUtilities;
 
 public class VideoClientUDP {
@@ -31,15 +32,21 @@ public class VideoClientUDP {
         startHeartbeatMonitor();
     }
 
-    /** Gửi frame kèm username (clientID) */
-    public void sendFrame(byte[] frameData, String clientID) {
+     /** Gửi frame có roomCode + clientID */
+    public void sendFrame(byte[] frameData, String clientID, String roomCode) {
         try {
-            byte[] idBytes = clientID.getBytes();
-            byte[] data = new byte[36 + frameData.length];
-            System.arraycopy(idBytes, 0, data, 0, Math.min(idBytes.length, 36));
-            System.arraycopy(frameData, 0, data, 36, frameData.length);
+            byte[] roomBytes = new byte[36];
+            byte[] idBytes = new byte[36];
 
-            DatagramPacket packet = new DatagramPacket(data, data.length, serverAddr, port);
+            System.arraycopy(roomCode.getBytes(), 0, roomBytes, 0, Math.min(roomCode.length(), 36));
+            System.arraycopy(clientID.getBytes(), 0, idBytes, 0, Math.min(clientID.length(), 36));
+
+            ByteBuffer buffer = ByteBuffer.allocate(roomBytes.length + idBytes.length + frameData.length);
+            buffer.put(roomBytes);
+            buffer.put(idBytes);
+            buffer.put(frameData);
+
+            DatagramPacket packet = new DatagramPacket(buffer.array(), buffer.position(), serverAddr, port);
             socket.send(packet);
         } catch (Exception e) {
             System.err.println("Gửi frame thất bại: " + e.getMessage());

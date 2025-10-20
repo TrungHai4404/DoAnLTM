@@ -9,8 +9,8 @@ public class VideoServerUDP {
     private int port = 5000;
     
     // Lưu địa chỉ client để phát video cho tất cả
-    private CopyOnWriteArrayList<InetSocketAddress> clients = new CopyOnWriteArrayList<>();
     private ExecutorService pool = Executors.newFixedThreadPool(10);
+    private static final ConcurrentHashMap<String, CopyOnWriteArrayList<InetSocketAddress>> roomClients = new ConcurrentHashMap<>();
 
     public VideoServerUDP() throws Exception {
         socket = new DatagramSocket(port);
@@ -21,9 +21,7 @@ public class VideoServerUDP {
 
         while (true) {
             DatagramPacket pkt = new DatagramPacket(buf, buf.length);
-            socket.receive(pkt);
-
-            String data = new String(pkt.getData(), 0, pkt.getLength()).trim();
+            socket.receive(pkt);         
             // Kiểm tra nếu gói tin là heartbeat
             if (new String(pkt.getData(), 0, pkt.getLength()).equals("PING")) {
                 // Trả lại gói heartbeat (echo) để client cập nhật lastResponseTime
@@ -34,31 +32,39 @@ public class VideoServerUDP {
                 continue; // bỏ qua không phát tán
             }
             // ✅ Kiểm tra gói PING
-            if (data.equalsIgnoreCase("PING_VIDEO")) {
+            String dataPing = new String(pkt.getData(), 0, pkt.getLength()).trim();
+            if (dataPing.equalsIgnoreCase("PING_VIDEO")) {
                 byte[] pong = "PONG_VIDEO".getBytes();
                 DatagramPacket resp = new DatagramPacket(pong, pong.length, pkt.getAddress(), pkt.getPort());
                 socket.send(resp);
                 System.out.println("↩️ PONG_VIDEO sent to " + pkt.getAddress());
                 continue;
             }
-            // Lưu client vào danh sách nếu chưa có
+            // 🚀 Tách room + clientID + frame
+            byte[] data = Arrays.copyOf(pkt.getData(), pkt.getLength());
+            if (data.length <= 72) continue;
+            String roomCode = new String(Arrays.copyOfRange(data, 0, 36)).trim();
+            String clientID = new String(Arrays.copyOfRange(data, 36, 72)).trim();
+            byte[] frame = Arrays.copyOfRange(data, 72, data.length);
+
             InetSocketAddress clientAddr = new InetSocketAddress(pkt.getAddress(), pkt.getPort());
-            if (!clients.contains(clientAddr)) {
-                clients.add(clientAddr);
-                System.out.println("New client: " + clientAddr);
+            roomClients.putIfAbsent(roomCode, new CopyOnWriteArrayList<>());
+
+            // Thêm client vào phòng nếu chưa có
+            if (!roomClients.get(roomCode).contains(clientAddr)) {
+                roomClients.get(roomCode).add(clientAddr);
+                System.out.println("🧑‍💻 New client in room [" + roomCode + "]: " + clientAddr);
             }
             // Phát lại frame cho tất cả client (trừ client gửi)
-            byte[] datasend = Arrays.copyOf(pkt.getData(), pkt.getLength());
-
-            // broadcast tới các client khác
-            for (InetSocketAddress c : clients) {
+            CopyOnWriteArrayList<InetSocketAddress> targets = roomClients.get(roomCode);
+            for (InetSocketAddress c : targets) {
                 if (!c.equals(clientAddr)) {
                     pool.submit(() -> {
                         try {
-                            DatagramPacket p = new DatagramPacket(datasend, datasend.length, c.getAddress(), c.getPort());
+                            DatagramPacket p = new DatagramPacket(data, data.length, c.getAddress(), c.getPort());
                             socket.send(p);
                         } catch (Exception e) {
-                            System.err.println("Lỗi gửi tới client " + c + ": " + e.getMessage());
+                            System.err.println("⚠️ Lỗi gửi tới client " + c + ": " + e.getMessage());
                         }
                     });
                 }

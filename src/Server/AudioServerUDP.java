@@ -3,6 +3,7 @@ package server;
 import java.io.IOException;
 import java.net.*;
 import java.util.Arrays;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -13,7 +14,7 @@ public class AudioServerUDP {
     private static final byte[] HEARTBEAT = "HBEAT".getBytes();
     private ExecutorService pool = Executors.newFixedThreadPool(10);
 
-    private final CopyOnWriteArrayList<InetSocketAddress> clients = new CopyOnWriteArrayList<>();
+    private static final ConcurrentHashMap<String, CopyOnWriteArrayList<InetSocketAddress>> roomClients = new ConcurrentHashMap<>();
     private final int BUFFER_SIZE = 1024;
 
     public AudioServerUDP() throws Exception {
@@ -27,8 +28,9 @@ public class AudioServerUDP {
                 DatagramPacket pkt = new DatagramPacket(buf, buf.length);
                 socket.receive(pkt);
                 
-                String dataP = new String(pkt.getData(), 0, pkt.getLength()).trim();
+                
                 // ✅ Kiểm tra gói PING
+                String dataP = new String(pkt.getData(), 0, pkt.getLength()).trim();
                 if (dataP.equalsIgnoreCase("PING_AUDIO")) {
                     byte[] pong = "PONG_AUDIO".getBytes();
                     DatagramPacket resp = new DatagramPacket(pong, pong.length, pkt.getAddress(), pkt.getPort());
@@ -36,30 +38,37 @@ public class AudioServerUDP {
                     System.out.println("↩️ PONG_AUDIO sent to " + pkt.getAddress());
                     continue;
                 }
-
-                InetSocketAddress clientAddr = new InetSocketAddress(pkt.getAddress(), pkt.getPort());
-                if (!clients.contains(clientAddr)) {
-                    clients.add(clientAddr);
-                    System.out.println("New audio client: " + clientAddr);
-                }
-                
-                byte[] data = Arrays.copyOf(pkt.getData(), pkt.getLength());
                 // ⚡ Xử lý Heartbeat
+                byte[] data = Arrays.copyOf(pkt.getData(), pkt.getLength());
                 if (data.length == HEARTBEAT.length && Arrays.equals(data, HEARTBEAT)) {
                     DatagramPacket echo = new DatagramPacket(data, data.length, pkt.getAddress(), pkt.getPort());
                     socket.send(echo);
                     // System.out.println("💓 Echo HBEAT -> " + sender);
                     continue;
                 }
+                // Tách dữ liệu
+                if (data.length <= 72) continue;
+                String roomCode = new String(Arrays.copyOfRange(data, 0, 36)).trim();
+                String clientID = new String(Arrays.copyOfRange(data, 36, 72)).trim();
+                byte[] audio = Arrays.copyOfRange(data, 72, data.length);
+                
+                InetSocketAddress clientAddr = new InetSocketAddress(pkt.getAddress(), pkt.getPort());
+                roomClients.putIfAbsent(roomCode, new CopyOnWriteArrayList<>());
+                
+                if (!roomClients.get(roomCode).contains(clientAddr)) {
+                    roomClients.get(roomCode).add(clientAddr);
+                    System.out.println("New client in room [" + roomCode + "]: " + clientAddr);
+                }
+
                 // Phát lại cho tất cả client khác
-                for (InetSocketAddress c : clients) {
+                for (InetSocketAddress c : roomClients.get(roomCode)) {
                     if (!c.equals(clientAddr)) {
                         pool.submit(() -> {
                             try {
                                 DatagramPacket sendPkt = new DatagramPacket(data, data.length, c.getAddress(), c.getPort());
                                 socket.send(sendPkt);
                             } catch (Exception e) {
-                                System.err.println("⚠️ Lỗi gửi tới client " + c + ": " + e.getMessage());
+                                System.err.println("Lỗi gửi tới client " + c + ": " + e.getMessage());
                             }
                         });
                     }

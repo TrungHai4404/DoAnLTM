@@ -15,7 +15,9 @@ public class AudioClientUDP {
     private static final int HEARTBEAT_INTERVAL = 3000; // 3 giây gửi ping
     private static final int HEARTBEAT_TIMEOUT = 9000;
     private volatile boolean disconnectedHandled = false;
-    
+    private String roomCode;
+    private String clientID;
+
     public interface ConnectionListener {
         void onServerDisconnected(String type);
     }
@@ -41,7 +43,9 @@ public class AudioClientUDP {
 
     private volatile long lastResponseTime = System.currentTimeMillis();
 
-    public AudioClientUDP(String serverIP) throws Exception {
+    public AudioClientUDP(String serverIP,String roomCode, String clientID) throws Exception {
+        this.roomCode = roomCode;
+        this.clientID = clientID;
         socket = new DatagramSocket();            // cổng ngẫu nhiên
         socket.setSoTimeout(3000);                // để vòng nhận thoát ra kiểm tra timeout
         socket.setReceiveBufferSize(1 << 20);
@@ -115,8 +119,7 @@ public class AudioClientUDP {
                     }else if (micEnabled) {
                         int bytesRead = mic.read(buffer, 0, buffer.length);
                         if (bytesRead > 0) {
-                            DatagramPacket pkt = new DatagramPacket(buffer, 0, bytesRead, serverAddr, port);
-                            socket.send(pkt);
+                            sendAudio(Arrays.copyOf(buffer, bytesRead));
                         }
                     } else {
                         // 💡 SỬA LỖI: Gửi heartbeat khi mic tắt
@@ -130,6 +133,25 @@ public class AudioClientUDP {
             }
             System.out.println("Luồng gửi audio đã dừng.");
         }, "Audio-Sender").start();
+    }
+    private void sendAudio(byte[] audioData) {
+        try {
+            byte[] roomBytes = new byte[36];
+            byte[] idBytes = new byte[36];
+
+            System.arraycopy(roomCode.getBytes(), 0, roomBytes, 0, Math.min(roomCode.length(), 36));
+            System.arraycopy(clientID.getBytes(), 0, idBytes, 0, Math.min(clientID.length(), 36));
+
+            byte[] combined = new byte[72 + audioData.length];
+            System.arraycopy(roomBytes, 0, combined, 0, 36);
+            System.arraycopy(idBytes, 0, combined, 36, 36);
+            System.arraycopy(audioData, 0, combined, 72, audioData.length);
+
+            DatagramPacket pkt = new DatagramPacket(combined, combined.length, serverAddr, port);
+            socket.send(pkt);
+        } catch (Exception e) {
+            if (running) System.err.println("Lỗi gửi audio: " + e.getMessage());
+        }
     }
 
     private void startReceiving() {
