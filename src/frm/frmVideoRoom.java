@@ -746,13 +746,20 @@ public class frmVideoRoom extends javax.swing.JFrame {
 
     private void btnMicActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnMicActionPerformed
         if (audioClient != null) {
-            boolean isMicNowEnabled = audioClient.toggleMic();
-
-            if (isMicNowEnabled) {
-                btnMic.setText("Tắt Mic");
-            } else {
-                btnMic.setText("Bật Mic");
+           
+            boolean isMicNowEnabled;
+            try {
+                isMicNowEnabled = audioClient.toggleMic();
+                if (isMicNowEnabled) {
+                    btnMic.setText("Tắt Mic");
+                } else {
+                        btnMic.setText("Bật Mic");
+                }
+            } catch (InterruptedException ex) {
+                System.getLogger(frmVideoRoom.class.getName()).log(System.Logger.Level.ERROR, (String) null, ex);
             }
+
+            
         }
     }//GEN-LAST:event_btnMicActionPerformed
 
