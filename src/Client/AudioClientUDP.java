@@ -183,10 +183,7 @@ public class AudioClientUDP {
             byte[] buffer = new byte[BUFFER_SIZE];
             while (running) {
                 try {
-                    if (!micEnabled) {
-                        Thread.sleep(40);
-                        continue;
-                    }else if (micEnabled && mic != null && mic.isOpen()) {
+                    if (micEnabled && mic != null && mic.isOpen()) {
                         int bytesRead = mic.read(buffer, 0, buffer.length);
                         if (bytesRead > 0) {
                             sendAudio(Arrays.copyOf(buffer, bytesRead));
@@ -195,7 +192,7 @@ public class AudioClientUDP {
                         // 💡 SỬA LỖI: Gửi heartbeat khi mic tắt
                         DatagramPacket heartbeatPkt = new DatagramPacket(HEARTBEAT_DATA, HEARTBEAT_DATA.length, serverAddr, port);
                         socket.send(heartbeatPkt);
-                        Thread.sleep(2000); // Gửi 2 giây một lần
+                        Thread.sleep(200); // Gửi 2 giây một lần
                     }
                 } catch (Exception e) {
                     if (running) System.err.println("Lỗi gửi audio: " + e.getMessage());
@@ -235,6 +232,12 @@ public class AudioClientUDP {
 
                     byte[] receivedData = Arrays.copyOf(pkt.getData(), pkt.getLength());
                     if (Arrays.equals(receivedData, HEARTBEAT_DATA)) {
+                        continue;
+                    }
+                    String asText = new String(receivedData).trim();
+                    if (asText.startsWith("SYNC:")) {
+                        // chỉ là gói đánh thức/NAT warmup, bỏ qua
+                        lastResponseTime = System.currentTimeMillis();
                         continue;
                     }
                     if (receivedData.length <= 72) continue;

@@ -38,7 +38,6 @@ public class AudioServerUDP {
                     System.out.println("↩️ PONG_AUDIO sent to " + pkt.getAddress());
                     continue;
                 }
-                // 🔹 Thêm xử lý JOIN_ROOM
                 if (dataP.startsWith("JOIN_ROOM:")) {
                     String[] parts = dataP.split(":");
                     if (parts.length >= 3) {
@@ -46,12 +45,25 @@ public class AudioServerUDP {
                         String clientID = parts[2];
                         InetSocketAddress clientAddr = new InetSocketAddress(pkt.getAddress(), pkt.getPort());
                         roomClients.putIfAbsent(roomCode, new CopyOnWriteArrayList<>());
-                        if (!roomClients.get(roomCode).contains(clientAddr)) {
-                            roomClients.get(roomCode).add(clientAddr);
+                        CopyOnWriteArrayList<InetSocketAddress> lst = roomClients.get(roomCode);
+
+                        if (!lst.contains(clientAddr)) {
+                            lst.add(clientAddr);
                             System.out.println("👋 Client " + clientID + " joined room [" + roomCode + "] from " + clientAddr);
                         }
+
+                        // 🔔 NEW: phát SYNC tới tất cả client trong phòng (kể cả người vừa join)
+                        byte[] sync = ("SYNC:" + roomCode + ":" + clientID).getBytes();
+                        for (InetSocketAddress c : lst) {
+                            try {
+                                DatagramPacket sp = new DatagramPacket(sync, sync.length, c.getAddress(), c.getPort());
+                                socket.send(sp);
+                            } catch (Exception ex) {
+                                System.err.println("Lỗi gửi SYNC tới " + c + ": " + ex.getMessage());
+                            }
+                        }
                     }
-                    continue; // không cần xử lý như gói audio
+                    continue;
                 }
                 // ⚡ Xử lý Heartbeat
                 byte[] data = Arrays.copyOf(pkt.getData(), pkt.getLength());
