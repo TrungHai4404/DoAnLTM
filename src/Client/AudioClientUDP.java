@@ -164,10 +164,7 @@ public class AudioClientUDP {
             byte[] buffer = new byte[BUFFER_SIZE];
             while (running) {
                 try {
-                    if (!micEnabled) {
-                        Thread.sleep(40);
-                        continue;
-                    }else if (micEnabled && mic != null && mic.isOpen()) {
+                    if (micEnabled && mic != null && mic.isOpen()) {
                         int bytesRead = mic.read(buffer, 0, buffer.length);
                         if (bytesRead > 0) {
                             sendAudio(Arrays.copyOf(buffer, bytesRead));
