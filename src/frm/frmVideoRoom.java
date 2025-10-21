@@ -149,7 +149,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
             new Thread(() -> {
                 try {
                     long lastTime = System.currentTimeMillis();
-                    while (true) {
+                    while (!serverDisconnected) {
                         if (!capturing || !videoEnabled) {
                             Thread.sleep(80);
                             continue;
@@ -664,8 +664,9 @@ public class frmVideoRoom extends javax.swing.JFrame {
                 capturing = false;
                 try { Thread.sleep(120); } catch (InterruptedException ignored) {}
                 chatClient.sendMessage("EXIT:" + localClientID + "|" + roomCode);
-                //WebcamCaptureManager.stop();
-                audioClient.stop();
+                if (audioClient != null) audioClient.stop();
+                if (videoClient != null) videoClient.close(); // ✅ THÊM DÒNG NÀY
+                if (chatClient != null) chatClient.close();
                SwingUtilities.invokeLater(() -> {
                     removeVideoPanel(localClientID);
                     removeUserFromList(localClientID);
@@ -702,7 +703,9 @@ public class frmVideoRoom extends javax.swing.JFrame {
             noCamImage = createNoCamImage(180, 120, "Camera Off");
             //WebcamCaptureManager.stop();
             updateVideoPanel(localClientID, noCamImage);
-            audioClient.stop();
+            if (audioClient != null) audioClient.stop();
+            if (videoClient != null) videoClient.close(); // ✅ THÊM DÒNG NÀY
+            if (chatClient != null) chatClient.close();
             SwingUtilities.invokeLater(() -> {
                 removeVideoPanel(localClientID);
                 removeUserFromList(localClientID);
@@ -777,7 +780,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
         if (serverDisconnected) return;
         serverDisconnected = true;
         System.err.println("⚠️ Server disconnected: " + reason);
-
+        capturing = false;
         new Thread(() -> {
             try {
                 SwingUtilities.invokeAndWait(() -> {

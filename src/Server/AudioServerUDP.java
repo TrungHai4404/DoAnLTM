@@ -37,11 +37,11 @@ public class AudioServerUDP {
                     System.out.println("↩️ PONG_AUDIO sent to " + pkt.getAddress());
                     continue;
                 }
-                // ⚡ Xử lý Heartbeat
+                
                 byte[] data = Arrays.copyOf(pkt.getData(), pkt.getLength());
                 
                 // Tách dữ liệu
-                if (data.length <= 72) continue;
+                if (data.length < 72) continue;
                 String roomCode = new String(Arrays.copyOfRange(data, 0, 36)).trim();
                 String clientID = new String(Arrays.copyOfRange(data, 36, 72)).trim();
                 byte[] audio = Arrays.copyOfRange(data, 72, data.length);

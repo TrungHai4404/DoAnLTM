@@ -97,11 +97,11 @@ public class AudioClientUDP {
     public boolean toggleMic() {
         if (micEnabled) { // Nếu đang bật -> thì TẮT
             disableMic();
-            System.out.println("Bat Mic");
+            System.out.println("Mic Da Tat");
             return false;
         } else { // Nếu đang tắt -> thì cố gắng BẬT
             // enableMic() sẽ tự xử lý việc xin quyền và trả về true/false
-            System.out.println("Tat Mic");
+            System.out.println("Mic Da Bat");
             return enableMic();
         }
     }
@@ -214,7 +214,7 @@ public class AudioClientUDP {
 
                     byte[] receivedData = Arrays.copyOf(pkt.getData(), pkt.getLength());
                     
-                    if (receivedData.length <= 72) continue;
+                    if (receivedData.length < 72) continue;
                     // 🧩 Tách header
                     String roomCodeFrame = new String(Arrays.copyOfRange(receivedData, 0, 36)).trim();
                     String senderID = new String(Arrays.copyOfRange(receivedData, 36, 72)).trim();
