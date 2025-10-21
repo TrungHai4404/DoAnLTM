@@ -135,6 +135,10 @@ public class AudioClientUDP {
     
     public void start() {
         try {
+            // 🟢 Gửi gói đăng ký phòng (HELLO)
+            byte[] helloMsg = ("HELLO_AUDIO:" + roomCode + ":" + clientID).getBytes();
+            DatagramPacket helloPkt = new DatagramPacket(helloMsg, helloMsg.length, serverAddr, port);
+            socket.send(helloPkt);
             initAudioLines();
             startSending();
             startReceiving();
@@ -144,6 +148,8 @@ public class AudioClientUDP {
         } catch (LineUnavailableException e) {
             System.err.println("Khong the truy cap Micro va Loa");
             stop(); // Dọn dẹp nếu không khởi tạo được
+        }catch (Exception ex) {
+            System.out.println("Lỗi gửi Hello Audio:" + ex);
         }
     }
     
