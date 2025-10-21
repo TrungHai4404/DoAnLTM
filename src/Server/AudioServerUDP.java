@@ -27,23 +27,7 @@ public class AudioServerUDP {
                 byte[] buf = new byte[BUFFER_SIZE];
                 DatagramPacket pkt = new DatagramPacket(buf, buf.length);
                 socket.receive(pkt);
-                // 🟢 Nếu là gói HELLO_AUDIO: thêm client vào danh sách
-                String msg = new String(pkt.getData(), 0, pkt.getLength()).trim();
-                if (msg.startsWith("HELLO_AUDIO:")) {
-                    String[] parts = msg.split(":");
-                    if (parts.length >= 3) {
-                        String roomCode = parts[1].trim();
-                        String clientID = parts[2].trim();
-                        InetSocketAddress clientAddr = new InetSocketAddress(pkt.getAddress(), pkt.getPort());
-
-                        roomClients.putIfAbsent(roomCode, new CopyOnWriteArrayList<>());
-                        if (!roomClients.get(roomCode).contains(clientAddr)) {
-                            roomClients.get(roomCode).add(clientAddr);
-                            System.out.println("👋 Registered " + clientID + " in room " + roomCode);
-                        }
-                    }
-                    continue;
-                }
+                
                 
                 // ✅ Kiểm tra gói PING
                 String dataP = new String(pkt.getData(), 0, pkt.getLength()).trim();
@@ -69,7 +53,7 @@ public class AudioServerUDP {
                 
                 InetSocketAddress clientAddr = new InetSocketAddress(pkt.getAddress(), pkt.getPort());
                 roomClients.putIfAbsent(roomCode, new CopyOnWriteArrayList<>());
-                
+                if(audio.length <= 1) continue;
                 if (!roomClients.get(roomCode).contains(clientAddr)) {
                     roomClients.get(roomCode).add(clientAddr);
                     System.out.println("New client in room [" + roomCode + "]: " + clientAddr);

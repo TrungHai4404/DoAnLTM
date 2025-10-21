@@ -15,6 +15,8 @@ public class AudioClientUDP {
     private static final byte[] HEARTBEAT_DATA = "HBEAT".getBytes();
     private static final int HEARTBEAT_INTERVAL = 3000; // 3 giây gửi ping
     private static final int HEARTBEAT_TIMEOUT = 9000;
+    private static final int KEEPALIVE_INTERVAL_MS = 2000;
+
     private volatile boolean disconnectedHandled = false;
     private String roomCode;
     private String clientID;
@@ -55,6 +57,7 @@ public class AudioClientUDP {
         socket.setSendBufferSize(1 << 20);
         serverAddr = InetAddress.getByName(serverIP);
     }
+    
     // Yêu cầu bật mic
     private boolean enableMic() {
         if (GlobalMicController.getInstance().requestMicAccess(this)) {
@@ -135,11 +138,9 @@ public class AudioClientUDP {
     
     public void start() {
         try {
-            // 🟢 Gửi gói đăng ký phòng (HELLO)
-            byte[] helloMsg = ("HELLO_AUDIO:" + roomCode + ":" + clientID).getBytes();
-            DatagramPacket helloPkt = new DatagramPacket(helloMsg, helloMsg.length, serverAddr, port);
-            socket.send(helloPkt);
             initAudioLines();
+            sendKeepaliveWithHeader();
+            startKeepaliveWithHeaderLoop();
             startSending();
             startReceiving();
             startPlaying(); // 💡 SỬA LỖI: Bắt đầu luồng phát âm thanh riêng biệt
@@ -152,7 +153,37 @@ public class AudioClientUDP {
             System.out.println("Lỗi gửi Hello Audio:" + ex);
         }
     }
-    
+    private void sendKeepaliveWithHeader() {
+        try {
+            byte[] roomBytes = new byte[36];
+            byte[] idBytes   = new byte[36];
+            System.arraycopy(roomCode.getBytes(), 0, roomBytes, 0, Math.min(roomCode.length(), 36));
+            System.arraycopy(clientID.getBytes(), 0, idBytes,   0, Math.min(clientID.length(), 36));
+
+            byte[] payload = new byte[] {0}; // 1 byte “rỗng” để gói > 72 bytes
+            byte[] pktBytes = new byte[72 + payload.length];
+            System.arraycopy(roomBytes, 0, pktBytes, 0, 36);
+            System.arraycopy(idBytes,   0, pktBytes, 36, 36);
+            System.arraycopy(payload,   0, pktBytes, 72, payload.length);
+
+            DatagramPacket pkt = new DatagramPacket(pktBytes, pktBytes.length, serverAddr, port);
+            socket.send(pkt);
+        } catch (Exception ex) {
+            if (running) System.err.println("Lỗi gửi keepalive header: " + ex.getMessage());
+        }
+    }
+    private void startKeepaliveWithHeaderLoop() {
+        new Thread(() -> {
+            while (running) {
+                try {
+                    // luôn gửi, kể cả khi mic tắt, để server biết client đang ở room
+                    sendKeepaliveWithHeader();
+                    Thread.sleep(KEEPALIVE_INTERVAL_MS);
+                } catch (InterruptedException ignored) {}
+            }
+        }, "Audio-KeepaliveHeader").start();
+    }
+
     private void initAudioLines() throws LineUnavailableException {
         AudioFormat format = getAudioFormat();
         // Khởi tạo Loa
