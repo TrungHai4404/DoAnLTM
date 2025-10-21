@@ -149,7 +149,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
             new Thread(() -> {
                 try {
                     long lastTime = System.currentTimeMillis();
-                    while (!serverDisconnected) {
+                    while (true) {
                         if (!capturing || !videoEnabled) {
                             Thread.sleep(80);
                             continue;

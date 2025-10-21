@@ -134,6 +134,7 @@ public class AudioClientUDP {
     
     public void start() {
         try {
+            this.lastResponseTime = System.currentTimeMillis();
             initAudioLines();
             startSending();
             startReceiving();
