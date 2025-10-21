@@ -13,7 +13,7 @@ public class AudioClientUDP {
     private final int port = 5001;
     private final int BUFFER_SIZE = 512; // Kích thước buffer nhỏ hơn để giảm độ trễ
     
-    private static final int HEARTBEAT_TIMEOUT = 9000;
+    private static final int HEARTBEAT_TIMEOUT = 20000;
     private volatile boolean disconnectedHandled = false;
     private String roomCode;
     private String clientID;
@@ -284,7 +284,7 @@ public class AudioClientUDP {
         if (disconnectedHandled) return; // tránh gọi nhiều lần
         disconnectedHandled = true;
 
-        System.err.println("🔌 Mất kết nối tới " + type + " server"
+        System.err.println("Mất kết nối tới " + type + " server"
                 + (e != null ? ": " + e.getMessage() : ""));
 
         running = false; // dừng tất cả các vòng while
