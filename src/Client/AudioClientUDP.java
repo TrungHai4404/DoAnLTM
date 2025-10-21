@@ -4,6 +4,7 @@ import java.io.IOException;
 import javax.sound.sampled.*;
 import java.net.*;
 import java.util.Arrays;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
@@ -12,8 +13,6 @@ public class AudioClientUDP {
     private final int port = 5001;
     private final int BUFFER_SIZE = 512; // Kích thước buffer nhỏ hơn để giảm độ trễ
     
-    private static final byte[] HEARTBEAT_DATA = "HBEAT".getBytes();
-    private static final int HEARTBEAT_INTERVAL = 3000; // 3 giây gửi ping
     private static final int HEARTBEAT_TIMEOUT = 9000;
     private volatile boolean disconnectedHandled = false;
     private String roomCode;
@@ -139,7 +138,6 @@ public class AudioClientUDP {
             startSending();
             startReceiving();
             startPlaying(); // 💡 SỬA LỖI: Bắt đầu luồng phát âm thanh riêng biệt
-            startHeartbeatSender();
             startHeartbeatMonitor();
         } catch (LineUnavailableException e) {
             System.err.println("Khong the truy cap Micro va Loa");
@@ -170,9 +168,7 @@ public class AudioClientUDP {
                             sendAudio(Arrays.copyOf(buffer, bytesRead));
                         }
                     } else {
-                        // 💡 SỬA LỖI: Gửi heartbeat khi mic tắt
-                        DatagramPacket heartbeatPkt = new DatagramPacket(HEARTBEAT_DATA, HEARTBEAT_DATA.length, serverAddr, port);
-                        socket.send(heartbeatPkt);
+                        sendAudio(new byte[0]);
                         Thread.sleep(2000); // Gửi 2 giây một lần
                     }
                 } catch (Exception e) {
@@ -187,9 +183,14 @@ public class AudioClientUDP {
             byte[] roomBytes = new byte[36];
             byte[] idBytes = new byte[36];
 
-            System.arraycopy(roomCode.getBytes(), 0, roomBytes, 0, Math.min(roomCode.length(), 36));
-            System.arraycopy(clientID.getBytes(), 0, idBytes, 0, Math.min(clientID.length(), 36));
+            // Sửa lỗi: Luôn dùng UTF-8
+            byte[] roomCodeData = roomCode.getBytes(StandardCharsets.UTF_8);
+            byte[] clientIDData = clientID.getBytes(StandardCharsets.UTF_8);
 
+            System.arraycopy(roomCodeData, 0, roomBytes, 0, Math.min(roomCodeData.length, 36));
+            System.arraycopy(clientIDData, 0, idBytes, 0, Math.min(clientIDData.length, 36));
+
+            // Cấu trúc 72-byte header + payload
             byte[] combined = new byte[72 + audioData.length];
             System.arraycopy(roomBytes, 0, combined, 0, 36);
             System.arraycopy(idBytes, 0, combined, 36, 36);
@@ -204,7 +205,7 @@ public class AudioClientUDP {
 
     private void startReceiving() {
         new Thread(() -> {
-            byte[] buffer = new byte[BUFFER_SIZE * 2];
+            byte[] buffer = new byte[BUFFER_SIZE * 4];
             while (running) {
                 try {
                     DatagramPacket pkt = new DatagramPacket(buffer, buffer.length);
@@ -212,15 +213,13 @@ public class AudioClientUDP {
                     lastResponseTime = System.currentTimeMillis();
 
                     byte[] receivedData = Arrays.copyOf(pkt.getData(), pkt.getLength());
-                    if (Arrays.equals(receivedData, HEARTBEAT_DATA)) {
-                        continue;
-                    }
+                    
                     if (receivedData.length <= 72) continue;
                     // 🧩 Tách header
                     String roomCodeFrame = new String(Arrays.copyOfRange(receivedData, 0, 36)).trim();
                     String senderID = new String(Arrays.copyOfRange(receivedData, 36, 72)).trim();
                     byte[] audioData = Arrays.copyOfRange(receivedData, 72, receivedData.length);
-
+                    if (!roomCodeFrame.equals(this.roomCode)) continue;
                     if (!roomCodeFrame.equals(this.roomCode)) continue;
                     if (audioData.length > 0) {
                         jitterBuffer.offer(audioData);
@@ -265,20 +264,7 @@ public class AudioClientUDP {
              System.out.println("Luồng phát audio đã dừng.");
         }, "Audio-Player").start();
     }
-    /** GỬI HEARTBEAT ĐỊNH KỲ (độc lập audio) */
-    private void startHeartbeatSender() {
-        new Thread(() -> {
-            while (running) {
-                try {
-                    DatagramPacket hb = new DatagramPacket(HEARTBEAT_DATA, HEARTBEAT_DATA.length, serverAddr, port);
-                    socket.send(hb);
-                    Thread.sleep(HEARTBEAT_INTERVAL);
-                } catch (Exception e) {
-                    if (running) System.err.println("⚠️ Lỗi gửi heartbeat: " + e.getMessage());
-                }
-            }
-        }, "Audio-HB-Send").start();
-    }
+    
     /** GIÁM SÁT: quá 9s không nhận → mất kết nối */
     private void startHeartbeatMonitor() {
         new Thread(() -> {
