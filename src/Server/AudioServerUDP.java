@@ -40,37 +40,49 @@ public class AudioServerUDP {
                 }
                 // ⚡ Xử lý Heartbeat
                 byte[] data = Arrays.copyOf(pkt.getData(), pkt.getLength());
+                // 1) Heartbeat cũ (không header) -> có thể echo hoặc bỏ qua
                 if (data.length == HEARTBEAT.length && Arrays.equals(data, HEARTBEAT)) {
-                    DatagramPacket echo = new DatagramPacket(data, data.length, pkt.getAddress(), pkt.getPort());
-                    socket.send(echo);
+                    // tùy bạn: echo lại hoặc chỉ continue
+                    // socket.send(new DatagramPacket(data, data.length, pkt.getAddress(), pkt.getPort()));
                     continue;
                 }
-                // Tách dữ liệu
-                if (data.length <= 72) continue;
-                String roomCode = new String(Arrays.copyOfRange(data, 0, 36)).trim();
-                String clientID = new String(Arrays.copyOfRange(data, 36, 72)).trim();
-                byte[] audio = Arrays.copyOfRange(data, 72, data.length);
-                
-                InetSocketAddress clientAddr = new InetSocketAddress(pkt.getAddress(), pkt.getPort());
-                roomClients.putIfAbsent(roomCode, new CopyOnWriteArrayList<>());
-                if(audio.length <= 1) continue;
-                if (!roomClients.get(roomCode).contains(clientAddr)) {
-                    roomClients.get(roomCode).add(clientAddr);
-                    System.out.println("New client in room [" + roomCode + "]: " + clientAddr);
-                }
+                // 2) Gói có header room+client (>=72 bytes)
+                if (data.length >= 72) {
+                    String roomCode = new String(Arrays.copyOfRange(data, 0, 36)).trim();
+                    String clientID = new String(Arrays.copyOfRange(data, 36, 72)).trim();
+                    byte[] audio = Arrays.copyOfRange(data, 72, data.length);
 
-                // Phát lại cho tất cả client khác
-                for (InetSocketAddress c : roomClients.get(roomCode)) {
-                    if (!c.equals(clientAddr)) {
-                        pool.submit(() -> {
-                            try {
-                                DatagramPacket sendPkt = new DatagramPacket(data, data.length, c.getAddress(), c.getPort());
-                                socket.send(sendPkt);
-                            } catch (Exception e) {
-                                System.err.println("Lỗi gửi tới client " + c + ": " + e.getMessage());
-                            }
-                        });
+                    InetSocketAddress clientAddr = new InetSocketAddress(pkt.getAddress(), pkt.getPort());
+                    roomClients.putIfAbsent(roomCode, new CopyOnWriteArrayList<>());
+
+                    // ✅ luôn ĐĂNG KÝ trước (kể cả keepalive 1 byte)
+                    CopyOnWriteArrayList<InetSocketAddress> list = roomClients.get(roomCode);
+                    if (!list.contains(clientAddr)) {
+                        list.add(clientAddr);
+                        System.out.println("Registered " + clientAddr + " into room " + roomCode + " (from " + clientID + ")");
                     }
+
+                    // ✅ keepalive có header: payload rất nhỏ -> KHÔNG broadcast
+                    if (audio.length <= 1) {
+                        continue;
+                    }
+
+                    // 3) Audio thật -> broadcast cho các client khác trong cùng room
+                    for (InetSocketAddress c : list) {
+                        if (!c.equals(clientAddr)) {
+                            final byte[] outData = data; // capture effectively final
+                            pool.submit(() -> {
+                                try {
+                                    DatagramPacket sendPkt = new DatagramPacket(outData, outData.length, c.getAddress(), c.getPort());
+                                    socket.send(sendPkt);
+                                } catch (Exception e) {
+                                    System.err.println("Lỗi gửi tới client " + c + ": " + e.getMessage());
+                                }
+                            });
+                        }
+                    }
+
+                    continue;
                 }
             }catch (SocketTimeoutException e) {
                 // bỏ qua
