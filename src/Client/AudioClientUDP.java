@@ -110,7 +110,7 @@ public class AudioClientUDP {
     }
 
     // Tách hàm khởi tạo mic để gọi khi cần
-    private void initMic() throws LineUnavailableException, InterruptedException {
+    private void initMic() throws LineUnavailableException {
         AudioFormat format = getAudioFormat();
         DataLine.Info micInfo = new DataLine.Info(TargetDataLine.class, format);
         if (!AudioSystem.isLineSupported(micInfo)) {
@@ -119,9 +119,12 @@ public class AudioClientUDP {
         mic = (TargetDataLine) AudioSystem.getLine(micInfo);
         mic.open(format, BUFFER_SIZE * 2);
         mic.start();
-        Thread.sleep(200); 
-        mic.flush(); 
+        try {
+            Thread.sleep(200); // warm-up
+            mic.flush();
+        } catch (InterruptedException ignored) {}
     }
+
     public void stop() {
         running = false; // Tín hiệu cho các luồng dừng lại
         disableMic(); // đóng phòng là giải phóng mic
@@ -141,6 +144,7 @@ public class AudioClientUDP {
     public void start() {
         try {
             initAudioLines();
+            sendJoinPacket();
             startSending();
             startReceiving();
             startPlaying(); // 💡 SỬA LỖI: Bắt đầu luồng phát âm thanh riêng biệt
@@ -151,7 +155,17 @@ public class AudioClientUDP {
             stop(); // Dọn dẹp nếu không khởi tạo được
         }
     }
-    
+    private void sendJoinPacket() {
+        try {
+            String joinMsg = "JOIN_ROOM:" + roomCode + ":" + clientID;
+            byte[] joinData = joinMsg.getBytes();
+            DatagramPacket pkt = new DatagramPacket(joinData, joinData.length, serverAddr, port);
+            socket.send(pkt);
+            System.out.println("📡 Sent JOIN_ROOM to server");
+        } catch (Exception e) {
+            System.err.println("❌ Lỗi gửi JOIN_ROOM: " + e.getMessage());
+        }
+    }
     private void initAudioLines() throws LineUnavailableException {
         AudioFormat format = getAudioFormat();
         // Khởi tạo Loa
