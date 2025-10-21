@@ -2,6 +2,7 @@ package server;
 
 import java.io.IOException;
 import java.net.*;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -42,8 +43,8 @@ public class AudioServerUDP {
                 
                 // Tách dữ liệu
                 if (data.length < 72) continue;
-                String roomCode = new String(Arrays.copyOfRange(data, 0, 36)).trim();
-                String clientID = new String(Arrays.copyOfRange(data, 36, 72)).trim();
+                String roomCode = new String(Arrays.copyOfRange(data, 0, 36), StandardCharsets.UTF_8).trim();
+                String clientID = new String(Arrays.copyOfRange(data, 36, 72), StandardCharsets.UTF_8).trim();
                 byte[] audio = Arrays.copyOfRange(data, 72, data.length);
                 if (roomCode.isEmpty()) continue;
                 InetSocketAddress clientAddr = new InetSocketAddress(pkt.getAddress(), pkt.getPort());

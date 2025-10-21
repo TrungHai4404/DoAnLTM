@@ -217,8 +217,8 @@ public class AudioClientUDP {
                     
                     if (receivedData.length < 72) continue;
                     // 🧩 Tách header
-                    String roomCodeFrame = new String(Arrays.copyOfRange(receivedData, 0, 36)).trim();
-                    String senderID = new String(Arrays.copyOfRange(receivedData, 36, 72)).trim();
+                    String roomCodeFrame = new String(Arrays.copyOfRange(receivedData, 0, 36), StandardCharsets.UTF_8).trim();
+                    String senderID = new String(Arrays.copyOfRange(receivedData, 36, 72), StandardCharsets.UTF_8).trim();
                     byte[] audioData = Arrays.copyOfRange(receivedData, 72, receivedData.length);
                     if (!roomCodeFrame.equals(this.roomCode)) continue;
                     if (!roomCodeFrame.equals(this.roomCode)) continue;
