@@ -44,17 +44,24 @@ public class AudioServerUDP {
                         String roomCode = parts[1];
                         String clientID = parts[2];
                         InetSocketAddress clientAddr = new InetSocketAddress(pkt.getAddress(), pkt.getPort());
+
                         roomClients.putIfAbsent(roomCode, new CopyOnWriteArrayList<>());
-                        CopyOnWriteArrayList<InetSocketAddress> lst = roomClients.get(roomCode);
+                        CopyOnWriteArrayList<InetSocketAddress> clients = roomClients.get(roomCode);
 
-                        if (!lst.contains(clientAddr)) {
-                            lst.add(clientAddr);
-                            System.out.println("👋 Client " + clientID + " joined room [" + roomCode + "] from " + clientAddr);
-                        }
+                        // 🔹 NEW FIX: Xóa client cũ có cùng clientID
+                        clients.removeIf(addr -> addr.getAddress().equals(pkt.getAddress()) && addr.getPort() == pkt.getPort());
 
-                        // 🔔 NEW: phát SYNC tới tất cả client trong phòng (kể cả người vừa join)
+                        // 🔹 Nếu có client cũ cùng clientID nhưng khác cổng, loại bỏ để tránh trùng
+                        clients.removeIf(addr -> addr.toString().contains(clientID));
+
+                        // 🔹 Thêm client mới
+                        clients.add(clientAddr);
+
+                        System.out.println("👋 Client " + clientID + " joined room [" + roomCode + "] from " + clientAddr);
+
+                        // 🔹 Gửi SYNC tới các client khác trong phòng để đồng bộ luồng
                         byte[] sync = ("SYNC:" + roomCode + ":" + clientID).getBytes();
-                        for (InetSocketAddress c : lst) {
+                        for (InetSocketAddress c : clients) {
                             try {
                                 DatagramPacket sp = new DatagramPacket(sync, sync.length, c.getAddress(), c.getPort());
                                 socket.send(sp);
@@ -65,6 +72,7 @@ public class AudioServerUDP {
                     }
                     continue;
                 }
+
                 // ⚡ Xử lý Heartbeat
                 byte[] data = Arrays.copyOf(pkt.getData(), pkt.getLength());
                 if (data.length == HEARTBEAT.length && Arrays.equals(data, HEARTBEAT)) {

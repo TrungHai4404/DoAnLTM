@@ -5,8 +5,6 @@
 package frm;
 
 import Utils.PasswordUtils;
-import Server.MyConnection;
-import com.sun.jdi.connect.spi.Connection;
 import dao.UserDao;
 import javax.swing.JOptionPane;
 import model.User;
