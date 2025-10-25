@@ -19,7 +19,7 @@ public class frmMainMenu extends javax.swing.JFrame {
     private final User currentUser; // giữ thông tin người dùng đang đăng nhập
     NetworkUtils checkServer = new NetworkUtils();
     VideoRoomDao roomDao = new VideoRoomDao();
-    String ServerIP = "192.168.1.2";
+    String ServerIP = "192.168.57.172";
     public frmMainMenu(User user) {
         initComponents();
         setLocationRelativeTo(null); 

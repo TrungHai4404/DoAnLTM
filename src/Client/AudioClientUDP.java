@@ -253,7 +253,10 @@ public class AudioClientUDP {
 
                     if (!roomCodeFrame.equals(this.roomCode)) continue;
                     if (audioData.length > 0) jitterBuffer.offer(audioData);
+                }catch(SocketTimeoutException ex){
+                    System.out.println("Lỗi nhận âm thanh!!!");
                 } catch (Exception e) {
+                    
                     if (running) e.printStackTrace();
                 }
             }

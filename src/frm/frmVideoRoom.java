@@ -49,7 +49,7 @@ public class frmVideoRoom extends javax.swing.JFrame {
     private String localClientID;
     private boolean videoEnabled = true;
     private boolean micEnabled = true;
-    private String ServerIP = "192.168.1.2";
+    private String ServerIP = "192.168.57.172";
     // Networking
     private VideoClientUDP videoClient;
     private ChatClientTCP chatClient;
